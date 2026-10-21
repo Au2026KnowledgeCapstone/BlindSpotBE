@@ -1,7 +1,10 @@
 from flask import Flask, jsonify, request
+import os
 
 app = Flask(__name__)
 
+AI_SERVICE_URL = os.getenv("AI_SERVICE_URL")
+AI_API_KEY = os.getenv("AI_API_KEY")
 
 @app.get("/")
 def health_check():
@@ -83,3 +86,26 @@ def projects_flows(project_name, flow_id):
         "flow_id": flow_id
     }
     return jsonify(response), 200
+
+
+
+@app.route("/api/projects/<project_name>/run-test", methods=["POST"])
+def run_test(project_name):
+    data = request.get_json()
+    # Process the data and generate the run-test response
+    response = {
+        "project_name": project_name,
+        "status": 1,
+    }
+    
+    
+    ## VANSHIKA PLZ SEND REQUEST TO API URL HERE.
+    
+    request_data = {
+        
+    }
+    
+    
+    
+    return jsonify(response), 200   
+
