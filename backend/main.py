@@ -26,8 +26,6 @@ def create_project():
 
 
 
-
-
 ## Reading
 @app.route("/api/dashboard", methods=["POST"])
 def dashboard():
@@ -59,5 +57,29 @@ def environments():
     response = {
         "message": "Environments data processed successfully",
         "data_received": data
+    }
+    return jsonify(response), 200
+
+@app.route("/api/projects/<project_name>", methods=["POST"])
+def projects_names(project_name):
+    data = request.get_json()
+    # Process the data and generate the projects/flows response
+    response = {
+        "message": "Projects flows data processed successfully",
+        "data_received": data,
+        "project_name": project_name
+    }
+    return jsonify(response), 200
+
+
+@app.route("/api/projects/<project_name>/flows/<flow_id>", methods=["POST"])
+def projects_flows(project_name, flow_id):
+    data = request.get_json()
+    # Process the data and generate the projects/flows response
+    response = {
+        "message": "Projects flows data processed successfully",
+        "data_received": data,
+        "project_name": project_name,
+        "flow_id": flow_id
     }
     return jsonify(response), 200
