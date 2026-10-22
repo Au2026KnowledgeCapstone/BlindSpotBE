@@ -11,10 +11,6 @@ def health_check():
     return jsonify({"status": "ok", "message": "API is running"})
 
 
-if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
-
-
 
 ## Creation    
 @app.route("/api/create-project", methods=["POST"])
@@ -53,7 +49,7 @@ def accounts():
 
 
 
-@app.route("/api/environments", methods=["  POST"])
+@app.route("/api/environments", methods=["POST"])
 def environments():
     data = request.get_json()
     # Process the data and generate the environments response
@@ -114,7 +110,7 @@ def run_test(project_name):
 # API structure only. New handlers return 501 until their services are wired.
 # TODO: Validate Supabase bearer tokens and project/environment/run ownership.
 # TODO: Validate JSON, filters, pagination cursors, and Idempotency-Key headers.
-# All original code above is preserved unchanged, including existing POST handlers.
+# Existing POST handlers remain placeholders; service integration is not implemented.
 
 
 ## Projects and environments
@@ -454,3 +450,8 @@ def finalize_ai_cost(run_id):
     # Finalize only after all final usage matches; completion alone is insufficient.
     response = {"message": "AI cost finalization is not implemented", "run_id": run_id}
     return jsonify(response), 501
+
+
+# Register every route before starting the development server.
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5000, debug=True)

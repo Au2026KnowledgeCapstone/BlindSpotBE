@@ -238,7 +238,7 @@ Comment body: `{"text":"..."}` → **201** saved comment. Notification PATCH: `{
 
 ## Before implementation
 
-1) Fix the early `app.run()` block and malformed `"  POST"` declaration in main.py. Preserve original endpoints and coordinate legacy project-name → ID changes.
+1) Keep `app.run()` after all route declarations. Preserve original endpoints and coordinate legacy project-name → ID changes.
 
 2) Agree the worker/AI protocol, actual flow/data source and Supabase/database/storage/credential configuration.
 
