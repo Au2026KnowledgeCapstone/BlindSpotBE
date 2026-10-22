@@ -21,7 +21,7 @@ source .venv/bin/activate
 ## Cloud Run continuous deployment (Google Cloud Buildpacks)
 
 Build from the repository root, where `requirements.txt`, `.python-version`
-and `Procfile` live. Python 3.12 is selected by `.python-version`; Gunicorn
+and `Procfile` live. Python 3.13 is selected by `.python-version`; Gunicorn
 imports the existing Flask application as `backend.main:app`.
 
 Production command (run from the repository root):
@@ -40,7 +40,7 @@ used for health checks. Local development still uses `make run`.
 For a clean local production smoke test:
 
 ```bash
-python3.12 -m venv /tmp/blindspotbe-check
+python3.13 -m venv /tmp/blindspotbe-check
 /tmp/blindspotbe-check/bin/python -m pip install -r requirements.txt
 export PORT=8080
 /tmp/blindspotbe-check/bin/gunicorn --bind 0.0.0.0:$PORT --access-logfile - --error-logfile - backend.main:app
@@ -50,7 +50,7 @@ export PORT=8080
 In the existing GitHub trigger, keep the build context at the repository root
 and the build method set to Google Cloud Buildpacks. Any existing build-time
 `GOOGLE_ENTRYPOINT` or `GOOGLE_PYTHON_VERSION` overrides must be removed or
-aligned with the command above and Python `3.12.x`. Leave Cloud Run container
+aligned with the command above and Python `3.13.x`. Leave Cloud Run container
 command/argument overrides empty so the generated image entrypoint is used.
 `app.yaml` is an App Engine configuration and is not used by this deployment.
 This Python backend needs no `package.json`; do not include the local Node
