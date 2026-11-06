@@ -383,9 +383,9 @@ CREATE EVENT TRIGGER ensure_rls ON ddl_command_end EXECUTE FUNCTION public.rls_a
 --    should be REVOKEd from anon/authenticated or moved to app_private.
 --      REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon, authenticated;
 --
--- 2. public.profiles is never populated. There is no trigger on auth.users, so
---    the table has zero rows permanently. Add an AFTER INSERT trigger calling a
---    handle_new_user() function.
+-- 2. [RESOLVED 2026-11-05 — see "APPLIED CHANGES" below] public.profiles was
+--    never populated; there was no trigger on auth.users. Fixed by
+--    on_auth_user_created / app_private.handle_new_user().
 --
 -- 3. public.profiles RLS is `user_id = auth.uid()` FOR ALL, so a user can read
 --    only their own profile and no client can resolve a teammate's display
@@ -398,4 +398,45 @@ CREATE EVENT TRIGGER ensure_rls ON ddl_command_end EXECUTE FUNCTION public.rls_a
 -- 5. projects.owner_id is unindexed; see the note in the index section.
 --
 -- 6. Supabase Auth has leaked-password protection disabled.
+-- =============================================================================
+
+-- =============================================================================
+-- APPLIED CHANGES
+--
+-- 2026-11-05 — migration `blindspot_be_prerequisites` (BlindSpotBE B1, Step 1).
+-- The only two changes BE is permitted to make to `public`. Everything else
+-- in this file still reflects the live schema as it was before this date.
+-- =============================================================================
+
+-- 1a. Populate public.profiles on signup.
+CREATE OR REPLACE FUNCTION app_private.handle_new_user()
+ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $$
+BEGIN
+  INSERT INTO public.profiles(user_id, display_name)
+  VALUES (NEW.id, COALESCE(NULLIF(btrim(NEW.raw_user_meta_data->>'display_name'), ''), ''))
+  ON CONFLICT (user_id) DO NOTHING;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION app_private.handle_new_user();
+
+-- 1b. Free public.environments from public.applications, add credential
+-- columns. application_id stays as a nullable column; dropping it is a
+-- separate decision alongside `applications` itself.
+ALTER TABLE public.environments ALTER COLUMN application_id DROP NOT NULL;
+
+ALTER TABLE public.environments
+  DROP CONSTRAINT environments_project_id_application_id_fkey;
+
+ALTER TABLE public.environments
+  ADD CONSTRAINT environments_project_id_fkey
+  FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+
+ALTER TABLE public.environments
+  ADD COLUMN encrypted_credentials text,
+  ADD COLUMN revision int NOT NULL DEFAULT 1,
+  ADD COLUMN verified_at timestamptz;
 -- =============================================================================
