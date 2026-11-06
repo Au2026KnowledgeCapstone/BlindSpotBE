@@ -68,7 +68,7 @@ def test_unimplemented_endpoints_say_so(client):
     _authenticate(client)
 
     response = client.patch(
-        "/api/me",
+        "/me",
         json={"display_name": "x"},
         headers={"Origin": "http://localhost:3000", "X-CSRF-Protection": "1"},
     )
@@ -82,7 +82,7 @@ def test_unimplemented_endpoints_say_so(client):
 
 def test_authentication_is_checked_before_implementation(client):
     """401 beats 501. An anonymous caller learns nothing about what exists."""
-    response = client.get("/api/projects")
+    response = client.get("/projects")
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "unauthorized"
@@ -93,7 +93,7 @@ def test_project_membership_is_checked_before_implementation(client):
     someone who is not a member of it."""
     _authenticate(client)
 
-    response = client.get("/api/projects/11111111-2222-3333-4444-555555555555/requirements")
+    response = client.get("/projects/11111111-2222-3333-4444-555555555555/requirements")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"

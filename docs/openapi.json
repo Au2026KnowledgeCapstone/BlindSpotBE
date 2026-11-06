@@ -785,13 +785,13 @@
         }
       }
     },
-    "/api/me": {
+    "/me": {
       "get": {
         "tags": [
           "Identity"
         ],
         "summary": "Who am I",
-        "operationId": "get_me_api_me_get",
+        "operationId": "get_me_me_get",
         "parameters": [
           {
             "name": "x-csrf-protection",
@@ -868,7 +868,7 @@
           "Identity"
         ],
         "summary": "Update my display name",
-        "operationId": "update_me_api_me_patch",
+        "operationId": "update_me_me_patch",
         "parameters": [
           {
             "name": "x-csrf-protection",
@@ -951,13 +951,13 @@
         }
       }
     },
-    "/api/notifications": {
+    "/notifications": {
       "get": {
         "tags": [
           "Identity"
         ],
         "summary": "List my notifications",
-        "operationId": "list_notifications_api_notifications_get",
+        "operationId": "list_notifications_notifications_get",
         "parameters": [
           {
             "name": "unread",
@@ -1074,13 +1074,13 @@
         }
       }
     },
-    "/api/notifications/unread-count": {
+    "/notifications/unread-count": {
       "get": {
         "tags": [
           "Identity"
         ],
         "summary": "How many notifications are unread",
-        "operationId": "unread_count_api_notifications_unread_count_get",
+        "operationId": "unread_count_notifications_unread_count_get",
         "parameters": [
           {
             "name": "x-csrf-protection",
@@ -1153,13 +1153,13 @@
         }
       }
     },
-    "/api/notifications/{nid}": {
+    "/notifications/{nid}": {
       "patch": {
         "tags": [
           "Identity"
         ],
         "summary": "Mark a notification read",
-        "operationId": "update_notification_api_notifications__nid__patch",
+        "operationId": "update_notification_notifications__nid__patch",
         "parameters": [
           {
             "name": "nid",
@@ -1251,13 +1251,13 @@
         }
       }
     },
-    "/api/projects": {
+    "/projects": {
       "get": {
         "tags": [
           "Projects"
         ],
         "summary": "List projects I belong to",
-        "operationId": "list_projects_api_projects_get",
+        "operationId": "list_projects_projects_get",
         "parameters": [
           {
             "name": "cursor",
@@ -1367,7 +1367,7 @@
         ],
         "summary": "Create a project",
         "description": "Calls the existing create_project RPC rather than reimplementing it, so the owner membership row is always written in the same transaction.",
-        "operationId": "create_project_api_projects_post",
+        "operationId": "create_project_projects_post",
         "parameters": [
           {
             "name": "x-csrf-protection",
@@ -1450,13 +1450,13 @@
         }
       }
     },
-    "/api/projects/{pid}": {
+    "/projects/{pid}": {
       "get": {
         "tags": [
           "Projects"
         ],
         "summary": "Get a project",
-        "operationId": "get_project_api_projects__pid__get",
+        "operationId": "get_project_projects__pid__get",
         "parameters": [
           {
             "name": "pid",
@@ -1545,7 +1545,7 @@
         ],
         "summary": "Rename or redescribe a project",
         "description": "A project carries only a name and description. The application URL lives on an environment.",
-        "operationId": "update_project_api_projects__pid__patch",
+        "operationId": "update_project_projects__pid__patch",
         "parameters": [
           {
             "name": "pid",
@@ -1644,7 +1644,7 @@
         ],
         "summary": "Delete a project",
         "description": "Owner only. Deletion is owned by whoever owns the tenancy rewrite; declared here for completeness.",
-        "operationId": "delete_project_api_projects__pid__delete",
+        "operationId": "delete_project_projects__pid__delete",
         "parameters": [
           {
             "name": "pid",
@@ -1721,13 +1721,13 @@
         }
       }
     },
-    "/api/projects/{pid}/members": {
+    "/projects/{pid}/members": {
       "get": {
         "tags": [
           "Projects"
         ],
         "summary": "List project members",
-        "operationId": "list_members_api_projects__pid__members_get",
+        "operationId": "list_members_projects__pid__members_get",
         "parameters": [
           {
             "name": "pid",
@@ -1843,13 +1843,13 @@
         }
       }
     },
-    "/api/projects/{pid}/members/{uid}": {
+    "/projects/{pid}/members/{uid}": {
       "delete": {
         "tags": [
           "Projects"
         ],
         "summary": "Remove a member",
-        "operationId": "remove_member_api_projects__pid__members__uid__delete",
+        "operationId": "remove_member_projects__pid__members__uid__delete",
         "parameters": [
           {
             "name": "uid",
@@ -1935,13 +1935,13 @@
         }
       }
     },
-    "/api/projects/{pid}/invitations": {
+    "/projects/{pid}/invitations": {
       "get": {
         "tags": [
           "Projects"
         ],
         "summary": "List pending invitations",
-        "operationId": "list_invitations_api_projects__pid__invitations_get",
+        "operationId": "list_invitations_projects__pid__invitations_get",
         "parameters": [
           {
             "name": "pid",
@@ -2062,7 +2062,7 @@
         ],
         "summary": "Invite someone to a project",
         "description": "Calls the existing invite_member RPC. An expired pending invitation is renewed; an accepted one is immutable.",
-        "operationId": "create_invitation_api_projects__pid__invitations_post",
+        "operationId": "create_invitation_projects__pid__invitations_post",
         "parameters": [
           {
             "name": "pid",
@@ -2156,14 +2156,14 @@
         }
       }
     },
-    "/api/invitations/{iid}/accept": {
+    "/invitations/{iid}/accept": {
       "post": {
         "tags": [
           "Projects"
         ],
         "summary": "Accept an invitation",
         "description": "Calls the existing accept_invitation RPC, which locks the invitation, requires a confirmed email matching it, and will not downgrade a role you already hold.",
-        "operationId": "accept_invitation_api_invitations__iid__accept_post",
+        "operationId": "accept_invitation_invitations__iid__accept_post",
         "parameters": [
           {
             "name": "iid",
@@ -2245,14 +2245,14 @@
         }
       }
     },
-    "/api/dashboard": {
+    "/dashboard": {
       "get": {
         "tags": [
           "Projects"
         ],
         "summary": "Overview counts for a project",
         "description": "Coverage counts the latest result per requirement, so running the same requirement repeatedly does not inflate it. Untested stays distinct from passed.",
-        "operationId": "dashboard_api_dashboard_get",
+        "operationId": "dashboard_dashboard_get",
         "parameters": [
           {
             "name": "project_id",
@@ -2336,14 +2336,14 @@
         }
       }
     },
-    "/api/projects/{pid}/requirements": {
+    "/projects/{pid}/requirements": {
       "get": {
         "tags": [
           "Requirements"
         ],
         "summary": "List a project's requirements",
         "description": "Search covers title, description, criteria text and id. Filters compose.",
-        "operationId": "list_requirements_api_projects__pid__requirements_get",
+        "operationId": "list_requirements_projects__pid__requirements_get",
         "parameters": [
           {
             "name": "pid",
@@ -2529,7 +2529,7 @@
           "Requirements"
         ],
         "summary": "Create a requirement",
-        "operationId": "create_requirement_api_projects__pid__requirements_post",
+        "operationId": "create_requirement_projects__pid__requirements_post",
         "parameters": [
           {
             "name": "pid",
@@ -2623,13 +2623,13 @@
         }
       }
     },
-    "/api/projects/{pid}/requirements/{rid}": {
+    "/projects/{pid}/requirements/{rid}": {
       "get": {
         "tags": [
           "Requirements"
         ],
         "summary": "Get a requirement",
-        "operationId": "get_requirement_api_projects__pid__requirements__rid__get",
+        "operationId": "get_requirement_projects__pid__requirements__rid__get",
         "parameters": [
           {
             "name": "rid",
@@ -2727,7 +2727,7 @@
         ],
         "summary": "Update a requirement",
         "description": "Sending acceptance_criteria replaces the whole set; the server reconciles by id in one transaction. Editing title, description or criteria resets approval to draft.",
-        "operationId": "update_requirement_api_projects__pid__requirements__rid__patch",
+        "operationId": "update_requirement_projects__pid__requirements__rid__patch",
         "parameters": [
           {
             "name": "rid",
@@ -2834,7 +2834,7 @@
           "Requirements"
         ],
         "summary": "Delete a requirement",
-        "operationId": "delete_requirement_api_projects__pid__requirements__rid__delete",
+        "operationId": "delete_requirement_projects__pid__requirements__rid__delete",
         "parameters": [
           {
             "name": "rid",
@@ -2920,14 +2920,14 @@
         }
       }
     },
-    "/api/projects/{pid}/requirements/{rid}/approval": {
+    "/projects/{pid}/requirements/{rid}/approval": {
       "post": {
         "tags": [
           "Requirements"
         ],
         "summary": "Approve a requirement",
         "description": "Approval records that a requirement is correctly captured. It is not a test result. A requirement needing clarification cannot be approved until it has been edited.",
-        "operationId": "approve_requirement_api_projects__pid__requirements__rid__approval_post",
+        "operationId": "approve_requirement_projects__pid__requirements__rid__approval_post",
         "parameters": [
           {
             "name": "rid",
@@ -3030,14 +3030,14 @@
         }
       }
     },
-    "/api/projects/{pid}/imports": {
+    "/projects/{pid}/imports": {
       "post": {
         "tags": [
           "Imports"
         ],
         "summary": "Import requirements from documents",
         "description": "Forwards the documents to aiservice, which extracts requirements and cites the exact source passages. Everything lands as a draft; nothing is auto-approved. BE never calls a model itself.",
-        "operationId": "create_import_api_projects__pid__imports_post",
+        "operationId": "create_import_projects__pid__imports_post",
         "parameters": [
           {
             "name": "pid",
@@ -3072,7 +3072,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/Body_create_import_api_projects__pid__imports_post"
+                "$ref": "#/components/schemas/Body_create_import_projects__pid__imports_post"
               }
             }
           }
@@ -3131,13 +3131,13 @@
         }
       }
     },
-    "/api/projects/{pid}/imports/{iid}": {
+    "/projects/{pid}/imports/{iid}": {
       "get": {
         "tags": [
           "Imports"
         ],
         "summary": "Get an import and what it produced",
-        "operationId": "get_import_api_projects__pid__imports__iid__get",
+        "operationId": "get_import_projects__pid__imports__iid__get",
         "parameters": [
           {
             "name": "iid",
@@ -3230,14 +3230,14 @@
         }
       }
     },
-    "/api/projects/{pid}/imports/{iid}/documents/{did}": {
+    "/projects/{pid}/imports/{iid}/documents/{did}": {
       "get": {
         "tags": [
           "Imports"
         ],
         "summary": "Download a source document",
         "description": "Redirects to a short-lived signed URL. Source documents are retained so a reviewer can open the original.",
-        "operationId": "download_document_api_projects__pid__imports__iid__documents__did__get",
+        "operationId": "download_document_projects__pid__imports__iid__documents__did__get",
         "parameters": [
           {
             "name": "iid",
@@ -3337,13 +3337,13 @@
         }
       }
     },
-    "/api/projects/{pid}/environments": {
+    "/projects/{pid}/environments": {
       "get": {
         "tags": [
           "Environments"
         ],
         "summary": "List a project's environments",
-        "operationId": "list_environments_api_projects__pid__environments_get",
+        "operationId": "list_environments_projects__pid__environments_get",
         "parameters": [
           {
             "name": "pid",
@@ -3464,7 +3464,7 @@
         ],
         "summary": "Add an environment",
         "description": "Credentials are write-only: stored encrypted, never returned.",
-        "operationId": "create_environment_api_projects__pid__environments_post",
+        "operationId": "create_environment_projects__pid__environments_post",
         "parameters": [
           {
             "name": "pid",
@@ -3558,13 +3558,13 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}": {
+    "/projects/{pid}/environments/{eid}": {
       "get": {
         "tags": [
           "Environments"
         ],
         "summary": "Get an environment",
-        "operationId": "get_environment_api_projects__pid__environments__eid__get",
+        "operationId": "get_environment_projects__pid__environments__eid__get",
         "parameters": [
           {
             "name": "eid",
@@ -3662,7 +3662,7 @@
         ],
         "summary": "Update an environment",
         "description": "Changing base_url clears verification and bumps revision, invalidating any saved plan.",
-        "operationId": "update_environment_api_projects__pid__environments__eid__patch",
+        "operationId": "update_environment_projects__pid__environments__eid__patch",
         "parameters": [
           {
             "name": "eid",
@@ -3765,13 +3765,13 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}/verify": {
+    "/projects/{pid}/environments/{eid}/verify": {
       "post": {
         "tags": [
           "Environments"
         ],
         "summary": "Check that the saved login works",
-        "operationId": "verify_environment_api_projects__pid__environments__eid__verify_post",
+        "operationId": "verify_environment_projects__pid__environments__eid__verify_post",
         "parameters": [
           {
             "name": "eid",
@@ -3864,13 +3864,13 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}/runs": {
+    "/projects/{pid}/environments/{eid}/runs": {
       "get": {
         "tags": [
           "Analysis"
         ],
         "summary": "List runs for an environment",
-        "operationId": "list_runs_api_projects__pid__environments__eid__runs_get",
+        "operationId": "list_runs_projects__pid__environments__eid__runs_get",
         "parameters": [
           {
             "name": "eid",
@@ -4018,7 +4018,7 @@
         ],
         "summary": "Queue a run",
         "description": "Only approved requirements may be selected, at most ten per run. The run and its dispatch intent are saved in one transaction before aiservice is contacted, so a failed dispatch is retried from what was saved rather than lost.",
-        "operationId": "create_run_api_projects__pid__environments__eid__runs_post",
+        "operationId": "create_run_projects__pid__environments__eid__runs_post",
         "parameters": [
           {
             "name": "eid",
@@ -4121,13 +4121,13 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}": {
+    "/projects/{pid}/environments/{eid}/runs/{runid}": {
       "get": {
         "tags": [
           "Analysis"
         ],
         "summary": "Get a run",
-        "operationId": "get_run_api_projects__pid__environments__eid__runs__runid__get",
+        "operationId": "get_run_projects__pid__environments__eid__runs__runid__get",
         "parameters": [
           {
             "name": "eid",
@@ -4229,13 +4229,13 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/cancel": {
+    "/projects/{pid}/environments/{eid}/runs/{runid}/cancel": {
       "post": {
         "tags": [
           "Analysis"
         ],
         "summary": "Cancel a run",
-        "operationId": "cancel_run_api_projects__pid__environments__eid__runs__runid__cancel_post",
+        "operationId": "cancel_run_projects__pid__environments__eid__runs__runid__cancel_post",
         "parameters": [
           {
             "name": "eid",
@@ -4337,13 +4337,13 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/results": {
+    "/projects/{pid}/environments/{eid}/runs/{runid}/results": {
       "get": {
         "tags": [
           "Analysis"
         ],
         "summary": "List a run's per-requirement results",
-        "operationId": "list_results_api_projects__pid__environments__eid__runs__runid__results_get",
+        "operationId": "list_results_projects__pid__environments__eid__runs__runid__results_get",
         "parameters": [
           {
             "name": "eid",
@@ -4477,13 +4477,13 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}": {
+    "/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}": {
       "get": {
         "tags": [
           "Analysis"
         ],
         "summary": "Get one result, with its evidence",
-        "operationId": "get_result_api_projects__pid__environments__eid__runs__runid__results__resid__get",
+        "operationId": "get_result_projects__pid__environments__eid__runs__runid__results__resid__get",
         "parameters": [
           {
             "name": "eid",
@@ -4594,14 +4594,14 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/events": {
+    "/projects/{pid}/environments/{eid}/runs/{runid}/events": {
       "get": {
         "tags": [
           "Analysis"
         ],
         "summary": "Stream live run events",
         "description": "Server-sent events. Reconnect with Last-Event-ID to replay what was missed; refetch the run on completion rather than trusting the stream alone.",
-        "operationId": "stream_run_events_api_projects__pid__environments__eid__runs__runid__events_get",
+        "operationId": "stream_run_events_projects__pid__environments__eid__runs__runid__events_get",
         "parameters": [
           {
             "name": "eid",
@@ -4701,14 +4701,14 @@
         }
       }
     },
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage": {
+    "/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage": {
       "get": {
         "tags": [
           "Analysis"
         ],
         "summary": "What a run cost",
         "description": "Pending is not zero. Cost may arrive after a run finishes and is final only once everything expected has.",
-        "operationId": "run_usage_api_projects__pid__environments__eid__runs__runid__ai_usage_get",
+        "operationId": "run_usage_projects__pid__environments__eid__runs__runid__ai_usage_get",
         "parameters": [
           {
             "name": "eid",
@@ -4810,14 +4810,14 @@
         }
       }
     },
-    "/api/evidence/{eid}": {
+    "/evidence/{eid}": {
       "get": {
         "tags": [
           "Evidence"
         ],
         "summary": "Fetch an evidence artifact",
         "description": "Redirects to a short-lived signed URL. Evidence is served by id, never by storage path.",
-        "operationId": "get_evidence_api_evidence__eid__get",
+        "operationId": "get_evidence_evidence__eid__get",
         "parameters": [
           {
             "name": "eid",
@@ -5384,7 +5384,7 @@
         ],
         "title": "AuthResult"
       },
-      "Body_create_import_api_projects__pid__imports_post": {
+      "Body_create_import_projects__pid__imports_post": {
         "properties": {
           "brd": {
             "type": "string",
@@ -5417,7 +5417,7 @@
           "brd",
           "srs"
         ],
-        "title": "Body_create_import_api_projects__pid__imports_post"
+        "title": "Body_create_import_projects__pid__imports_post"
       },
       "CostFinalization": {
         "properties": {
