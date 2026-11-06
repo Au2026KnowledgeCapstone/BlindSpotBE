@@ -213,20 +213,20 @@ async def password_update(
 # ---------------------------------------------------------------------------
 
 
-@app.get("/api/me", tags=["Identity"], summary="Who am I", response_model=Me)
+@app.get("/me", tags=["Identity"], summary="Who am I", response_model=Me)
 def get_me(user: CurrentUser) -> Me:
     # Returns only what the token carries. Reading public.profiles for a
     # display name waits on B1's signup trigger populating that table.
     return Me(user_id=user.user_id, email=user.email)
 
 
-@app.patch("/api/me", tags=["Identity"], summary="Update my display name", response_model=Me)
+@app.patch("/me", tags=["Identity"], summary="Update my display name", response_model=Me)
 def update_me(user: CurrentUser, body: MeUpdate) -> Me:
     raise todo("B3", "Updating a profile")
 
 
 @app.get(
-    "/api/notifications",
+    "/notifications",
     tags=["Identity"],
     summary="List my notifications",
     response_model=Page[Notification],
@@ -240,7 +240,7 @@ def list_notifications(
 
 
 @app.get(
-    "/api/notifications/unread-count",
+    "/notifications/unread-count",
     tags=["Identity"],
     summary="How many notifications are unread",
     response_model=UnreadCount,
@@ -250,7 +250,7 @@ def unread_count(user: CurrentUser) -> UnreadCount:
 
 
 @app.patch(
-    "/api/notifications/{nid}",
+    "/notifications/{nid}",
     tags=["Identity"],
     summary="Mark a notification read",
     response_model=Notification,
@@ -265,7 +265,7 @@ def update_notification(user: CurrentUser, nid: str, body: NotificationUpdate) -
 
 
 @app.get(
-    "/api/projects",
+    "/projects",
     tags=["Projects"],
     summary="List projects I belong to",
     response_model=Page[Project],
@@ -275,7 +275,7 @@ def list_projects(user: CurrentUser, page: Paged) -> Page[Project]:
 
 
 @app.post(
-    "/api/projects",
+    "/projects",
     tags=["Projects"],
     summary="Create a project",
     status_code=201,
@@ -290,7 +290,7 @@ def create_project(user: CurrentUser, body: ProjectCreate) -> Project:
 
 
 @app.get(
-    "/api/projects/{pid}",
+    "/projects/{pid}",
     tags=["Projects"],
     summary="Get a project",
     response_model=Project,
@@ -300,7 +300,7 @@ def get_project(context: ProjectAccess) -> Project:
 
 
 @app.patch(
-    "/api/projects/{pid}",
+    "/projects/{pid}",
     tags=["Projects"],
     summary="Rename or redescribe a project",
     response_model=Project,
@@ -311,7 +311,7 @@ def update_project(context: ProjectManage, body: ProjectUpdate) -> Project:
 
 
 @app.delete(
-    "/api/projects/{pid}",
+    "/projects/{pid}",
     tags=["Projects"],
     summary="Delete a project",
     status_code=204,
@@ -322,7 +322,7 @@ def delete_project(context: ProjectManage) -> None:
 
 
 @app.get(
-    "/api/projects/{pid}/members",
+    "/projects/{pid}/members",
     tags=["Projects"],
     summary="List project members",
     response_model=Page[Member],
@@ -332,7 +332,7 @@ def list_members(context: ProjectAccess, page: Paged) -> Page[Member]:
 
 
 @app.delete(
-    "/api/projects/{pid}/members/{uid}",
+    "/projects/{pid}/members/{uid}",
     tags=["Projects"],
     summary="Remove a member",
     status_code=204,
@@ -342,7 +342,7 @@ def remove_member(context: ProjectManage, uid: str) -> None:
 
 
 @app.get(
-    "/api/projects/{pid}/invitations",
+    "/projects/{pid}/invitations",
     tags=["Projects"],
     summary="List pending invitations",
     response_model=Page[Invitation],
@@ -352,7 +352,7 @@ def list_invitations(context: ProjectManage, page: Paged) -> Page[Invitation]:
 
 
 @app.post(
-    "/api/projects/{pid}/invitations",
+    "/projects/{pid}/invitations",
     tags=["Projects"],
     summary="Invite someone to a project",
     status_code=201,
@@ -364,7 +364,7 @@ def create_invitation(context: ProjectManage, body: InvitationCreate) -> Invitat
 
 
 @app.post(
-    "/api/invitations/{iid}/accept",
+    "/invitations/{iid}/accept",
     tags=["Projects"],
     summary="Accept an invitation",
     response_model=Member,
@@ -378,7 +378,7 @@ def accept_invitation(user: CurrentUser, iid: str) -> Member:
 
 
 @app.get(
-    "/api/dashboard",
+    "/dashboard",
     tags=["Projects"],
     summary="Overview counts for a project",
     response_model=DashboardCounts,
@@ -400,7 +400,7 @@ def dashboard(
 
 
 @app.get(
-    "/api/projects/{pid}/requirements",
+    "/projects/{pid}/requirements",
     tags=["Requirements"],
     summary="List a project's requirements",
     response_model=Page[Requirement],
@@ -418,7 +418,7 @@ def list_requirements(
 
 
 @app.post(
-    "/api/projects/{pid}/requirements",
+    "/projects/{pid}/requirements",
     tags=["Requirements"],
     summary="Create a requirement",
     status_code=201,
@@ -429,7 +429,7 @@ def create_requirement(context: ProjectAccess, body: RequirementCreate) -> Requi
 
 
 @app.get(
-    "/api/projects/{pid}/requirements/{rid}",
+    "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
     summary="Get a requirement",
     response_model=Requirement,
@@ -439,7 +439,7 @@ def get_requirement(context: ProjectAccess, rid: str) -> Requirement:
 
 
 @app.patch(
-    "/api/projects/{pid}/requirements/{rid}",
+    "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
     summary="Update a requirement",
     response_model=Requirement,
@@ -453,7 +453,7 @@ def update_requirement(context: ProjectAccess, rid: str, body: RequirementUpdate
 
 
 @app.delete(
-    "/api/projects/{pid}/requirements/{rid}",
+    "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
     summary="Delete a requirement",
     status_code=204,
@@ -463,7 +463,7 @@ def delete_requirement(context: ProjectAccess, rid: str) -> None:
 
 
 @app.post(
-    "/api/projects/{pid}/requirements/{rid}/approval",
+    "/projects/{pid}/requirements/{rid}/approval",
     tags=["Requirements"],
     summary="Approve a requirement",
     response_model=Requirement,
@@ -482,7 +482,7 @@ def approve_requirement(context: ProjectAccess, rid: str, body: ApprovalRequest)
 
 
 @app.post(
-    "/api/projects/{pid}/imports",
+    "/projects/{pid}/imports",
     tags=["Imports"],
     summary="Import requirements from documents",
     status_code=201,
@@ -503,7 +503,7 @@ async def create_import(
 
 
 @app.get(
-    "/api/projects/{pid}/imports/{iid}",
+    "/projects/{pid}/imports/{iid}",
     tags=["Imports"],
     summary="Get an import and what it produced",
     response_model=ImportResult,
@@ -513,7 +513,7 @@ def get_import(context: ProjectAccess, iid: str) -> ImportResult:
 
 
 @app.get(
-    "/api/projects/{pid}/imports/{iid}/documents/{did}",
+    "/projects/{pid}/imports/{iid}/documents/{did}",
     tags=["Imports"],
     summary="Download a source document",
     status_code=302,
@@ -529,7 +529,7 @@ def download_document(context: ProjectAccess, iid: str, did: str) -> None:
 
 
 @app.get(
-    "/api/projects/{pid}/environments",
+    "/projects/{pid}/environments",
     tags=["Environments"],
     summary="List a project's environments",
     response_model=Page[Environment],
@@ -539,7 +539,7 @@ def list_environments(context: ProjectAccess, page: Paged) -> Page[Environment]:
 
 
 @app.post(
-    "/api/projects/{pid}/environments",
+    "/projects/{pid}/environments",
     tags=["Environments"],
     summary="Add an environment",
     status_code=201,
@@ -551,7 +551,7 @@ def create_environment(context: ProjectManage, body: EnvironmentCreate) -> Envir
 
 
 @app.get(
-    "/api/projects/{pid}/environments/{eid}",
+    "/projects/{pid}/environments/{eid}",
     tags=["Environments"],
     summary="Get an environment",
     response_model=Environment,
@@ -561,7 +561,7 @@ def get_environment(context: ProjectAccess, eid: str) -> Environment:
 
 
 @app.patch(
-    "/api/projects/{pid}/environments/{eid}",
+    "/projects/{pid}/environments/{eid}",
     tags=["Environments"],
     summary="Update an environment",
     response_model=Environment,
@@ -572,7 +572,7 @@ def update_environment(context: ProjectManage, eid: str, body: EnvironmentUpdate
 
 
 @app.post(
-    "/api/projects/{pid}/environments/{eid}/verify",
+    "/projects/{pid}/environments/{eid}/verify",
     tags=["Environments"],
     summary="Check that the saved login works",
     status_code=202,
@@ -588,7 +588,7 @@ def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
 
 
 @app.get(
-    "/api/projects/{pid}/environments/{eid}/runs",
+    "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
     summary="List runs for an environment",
     response_model=Page[Run],
@@ -603,7 +603,7 @@ def list_runs(
 
 
 @app.post(
-    "/api/projects/{pid}/environments/{eid}/runs",
+    "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
     summary="Queue a run",
     status_code=202,
@@ -619,7 +619,7 @@ def create_run(context: ProjectAccess, eid: str, body: RunCreate) -> Run:
 
 
 @app.get(
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}",
+    "/projects/{pid}/environments/{eid}/runs/{runid}",
     tags=["Analysis"],
     summary="Get a run",
     response_model=Run,
@@ -629,7 +629,7 @@ def get_run(context: ProjectAccess, eid: str, runid: str) -> Run:
 
 
 @app.post(
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/cancel",
+    "/projects/{pid}/environments/{eid}/runs/{runid}/cancel",
     tags=["Analysis"],
     summary="Cancel a run",
     status_code=202,
@@ -640,7 +640,7 @@ def cancel_run(context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
 
 
 @app.get(
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/results",
+    "/projects/{pid}/environments/{eid}/runs/{runid}/results",
     tags=["Analysis"],
     summary="List a run's per-requirement results",
     response_model=Page[Result],
@@ -650,7 +650,7 @@ def list_results(context: ProjectAccess, eid: str, runid: str, page: Paged) -> P
 
 
 @app.get(
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}",
+    "/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}",
     tags=["Analysis"],
     summary="Get one result, with its evidence",
     response_model=Result,
@@ -660,7 +660,7 @@ def get_result(context: ProjectAccess, eid: str, runid: str, resid: str) -> Resu
 
 
 @app.get(
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/events",
+    "/projects/{pid}/environments/{eid}/runs/{runid}/events",
     tags=["Analysis"],
     summary="Stream live run events",
     description=(
@@ -673,7 +673,7 @@ def stream_run_events(context: ProjectAccess, eid: str, runid: str) -> None:
 
 
 @app.get(
-    "/api/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage",
+    "/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage",
     tags=["Analysis"],
     summary="What a run cost",
     response_model=RunUsage,
@@ -689,7 +689,7 @@ def run_usage(context: ProjectAccess, eid: str, runid: str) -> RunUsage:
 
 
 @app.get(
-    "/api/evidence/{eid}",
+    "/evidence/{eid}",
     tags=["Evidence"],
     summary="Fetch an evidence artifact",
     status_code=302,
