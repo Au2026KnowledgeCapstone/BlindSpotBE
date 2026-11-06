@@ -1,13 +1,49 @@
-from fastapi import Depends, FastAPI
+"""BlindSpot backend — the complete API surface.
+
+Every route the product exposes is declared in this one file, deliberately, so
+the whole surface can be read top to bottom. Handlers stay thin: validate, call
+a service, return. Logic belongs in app/services/.
+
+Most handlers raise 501 today. That is honest — they are declared, typed and
+documented, but not implemented. An endpoint returning a cheerful 200 with
+echoed input would be worse than nothing, because it would read as working.
+"""
+from typing import Annotated
+
+from fastapi import FastAPI, File, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
-from app.core.auth import AuthenticatedUser, current_user, get_token_verifier
+from app.core.auth import get_token_verifier
 from app.core.config import get_settings
-from app.core.db import get_db
-from app.core.errors import register_exception_handlers
+from app.core.deps import CurrentUser, Db, Paged, ProjectAccess, ProjectManage
+from app.core.errors import ServiceError, register_exception_handlers
 from app.core.observability import RequestIdMiddleware, configure_logging
+from app.schemas.common import Acknowledged, ErrorResponse, Page
+from app.schemas.environments import Environment, EnvironmentCreate, EnvironmentUpdate
+from app.schemas.identity import (
+    DashboardCounts,
+    Invitation,
+    InvitationCreate,
+    Me,
+    MeUpdate,
+    Member,
+    Notification,
+    NotificationUpdate,
+    Project,
+    ProjectCreate,
+    ProjectUpdate,
+    UnreadCount,
+)
+from app.schemas.internal import AIUsageReport, CostFinalization, ExecutionEvent
+from app.schemas.requirements import (
+    ApprovalRequest,
+    ImportResult,
+    Requirement,
+    RequirementCreate,
+    RequirementUpdate,
+)
+from app.schemas.runs import Result, Run, RunCreate, RunUsage
 
 configure_logging("api")
 # Eagerly construct the configured TokenVerifier so a misconfigured
@@ -16,11 +52,42 @@ get_token_verifier()
 
 settings = get_settings()
 
-app = FastAPI(title="BlindSpot Backend")
+DESCRIPTION = """
+Requirements-driven product validation. A product manager imports requirements
+from their own documents, approves what the product is supposed to do, and
+BlindSpot runs those requirements against the real application in a browser.
+
+Every verdict comes back with the evidence behind it, and anything a model
+inferred stays visibly separate from what was actually observed.
+"""
+
+TAGS = [
+    {"name": "Health", "description": "Liveness. No authentication."},
+    {"name": "Identity", "description": "The signed-in user, and their notifications."},
+    {"name": "Projects", "description": "Projects, membership and invitations."},
+    {"name": "Requirements", "description": "What the product should do, and who approved it."},
+    {"name": "Imports", "description": "Extracting requirements from uploaded documents."},
+    {"name": "Environments", "description": "Where an application lives, and how to log in."},
+    {"name": "Analysis", "description": "Runs, their per-requirement results, and cost."},
+    {"name": "Evidence", "description": "Screenshots and captured page content."},
+    {"name": "Internal", "description": "Called by aiservice only. Never by the frontend."},
+]
+
+app = FastAPI(
+    title="BlindSpot Backend",
+    version="0.1.0",
+    description=DESCRIPTION,
+    openapi_tags=TAGS,
+    responses={
+        401: {"model": ErrorResponse, "description": "Authentication required."},
+        404: {"model": ErrorResponse, "description": "Not found, or not yours."},
+        501: {"model": ErrorResponse, "description": "Declared, not yet implemented."},
+    },
+)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     expose_headers=["X-Request-ID"],
@@ -28,12 +95,558 @@ app.add_middleware(
 register_exception_handlers(app)
 
 
-@app.get("/")
-def liveness(db: Session = Depends(get_db)) -> dict:
+def todo(handoff: str, what: str) -> ServiceError:
+    """A declared endpoint with no implementation yet.
+
+    Never a fake success. The message names what it is waiting on, so
+    'unfinished' is distinguishable from 'broken' at a glance.
+    """
+    return ServiceError("not_implemented", f"Not yet implemented. {what} lands in {handoff}.", 501)
+
+
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+
+
+@app.get("/", tags=["Health"], summary="Liveness check")
+def liveness(db: Db) -> dict:
     db.execute(text("SELECT 1"))
     return {"status": "ok"}
 
 
-@app.get("/api/me")
-def me(user: AuthenticatedUser = Depends(current_user)) -> dict:
-    return {"user_id": user.user_id, "email": user.email}
+# ---------------------------------------------------------------------------
+# Identity
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/me", tags=["Identity"], summary="Who am I", response_model=Me)
+def get_me(user: CurrentUser) -> Me:
+    # Returns only what the token carries. Reading public.profiles for a
+    # display name waits on B1's signup trigger populating that table.
+    return Me(user_id=user.user_id, email=user.email)
+
+
+@app.patch("/api/me", tags=["Identity"], summary="Update my display name", response_model=Me)
+def update_me(user: CurrentUser, body: MeUpdate) -> Me:
+    raise todo("B3", "Updating a profile")
+
+
+@app.get(
+    "/api/notifications",
+    tags=["Identity"],
+    summary="List my notifications",
+    response_model=Page[Notification],
+)
+def list_notifications(
+    user: CurrentUser,
+    page: Paged,
+    unread: Annotated[bool, Query(description="Only notifications not yet read.")] = False,
+) -> Page[Notification]:
+    raise todo("B3", "Notifications")
+
+
+@app.get(
+    "/api/notifications/unread-count",
+    tags=["Identity"],
+    summary="How many notifications are unread",
+    response_model=UnreadCount,
+)
+def unread_count(user: CurrentUser) -> UnreadCount:
+    raise todo("B3", "Notifications")
+
+
+@app.patch(
+    "/api/notifications/{nid}",
+    tags=["Identity"],
+    summary="Mark a notification read",
+    response_model=Notification,
+)
+def update_notification(user: CurrentUser, nid: str, body: NotificationUpdate) -> Notification:
+    raise todo("B3", "Notifications")
+
+
+# ---------------------------------------------------------------------------
+# Projects, membership, invitations
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/api/projects",
+    tags=["Projects"],
+    summary="List projects I belong to",
+    response_model=Page[Project],
+)
+def list_projects(user: CurrentUser, page: Paged) -> Page[Project]:
+    raise todo("B3", "Listing projects")
+
+
+@app.post(
+    "/api/projects",
+    tags=["Projects"],
+    summary="Create a project",
+    status_code=201,
+    response_model=Project,
+    description=(
+        "Calls the existing create_project RPC rather than reimplementing it, so the "
+        "owner membership row is always written in the same transaction."
+    ),
+)
+def create_project(user: CurrentUser, body: ProjectCreate) -> Project:
+    raise todo("B3", "Creating a project")
+
+
+@app.get(
+    "/api/projects/{pid}",
+    tags=["Projects"],
+    summary="Get a project",
+    response_model=Project,
+)
+def get_project(context: ProjectAccess) -> Project:
+    raise todo("B3", "Reading a project")
+
+
+@app.patch(
+    "/api/projects/{pid}",
+    tags=["Projects"],
+    summary="Rename or redescribe a project",
+    response_model=Project,
+    description="A project carries only a name and description. The application URL lives on an environment.",
+)
+def update_project(context: ProjectManage, body: ProjectUpdate) -> Project:
+    raise todo("B3", "Updating a project")
+
+
+@app.delete(
+    "/api/projects/{pid}",
+    tags=["Projects"],
+    summary="Delete a project",
+    status_code=204,
+    description="Owner only. Deletion is owned by whoever owns the tenancy rewrite; declared here for completeness.",
+)
+def delete_project(context: ProjectManage) -> None:
+    raise todo("B3", "Deleting a project")
+
+
+@app.get(
+    "/api/projects/{pid}/members",
+    tags=["Projects"],
+    summary="List project members",
+    response_model=Page[Member],
+)
+def list_members(context: ProjectAccess, page: Paged) -> Page[Member]:
+    raise todo("B3", "Listing members")
+
+
+@app.delete(
+    "/api/projects/{pid}/members/{uid}",
+    tags=["Projects"],
+    summary="Remove a member",
+    status_code=204,
+)
+def remove_member(context: ProjectManage, uid: str) -> None:
+    raise todo("B3", "Removing a member")
+
+
+@app.get(
+    "/api/projects/{pid}/invitations",
+    tags=["Projects"],
+    summary="List pending invitations",
+    response_model=Page[Invitation],
+)
+def list_invitations(context: ProjectManage, page: Paged) -> Page[Invitation]:
+    raise todo("B3", "Invitations")
+
+
+@app.post(
+    "/api/projects/{pid}/invitations",
+    tags=["Projects"],
+    summary="Invite someone to a project",
+    status_code=201,
+    response_model=Invitation,
+    description="Calls the existing invite_member RPC. An expired pending invitation is renewed; an accepted one is immutable.",
+)
+def create_invitation(context: ProjectManage, body: InvitationCreate) -> Invitation:
+    raise todo("B3", "Invitations")
+
+
+@app.post(
+    "/api/invitations/{iid}/accept",
+    tags=["Projects"],
+    summary="Accept an invitation",
+    response_model=Member,
+    description=(
+        "Calls the existing accept_invitation RPC, which locks the invitation, requires a "
+        "confirmed email matching it, and will not downgrade a role you already hold."
+    ),
+)
+def accept_invitation(user: CurrentUser, iid: str) -> Member:
+    raise todo("B3", "Accepting an invitation")
+
+
+@app.get(
+    "/api/dashboard",
+    tags=["Projects"],
+    summary="Overview counts for a project",
+    response_model=DashboardCounts,
+    description=(
+        "Coverage counts the latest result per requirement, so running the same requirement "
+        "repeatedly does not inflate it. Untested stays distinct from passed."
+    ),
+)
+def dashboard(
+    user: CurrentUser,
+    project_id: Annotated[str, Query(description="Project to report on.")],
+) -> DashboardCounts:
+    raise todo("B4", "The dashboard counts")
+
+
+# ---------------------------------------------------------------------------
+# Requirements
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/api/projects/{pid}/requirements",
+    tags=["Requirements"],
+    summary="List a project's requirements",
+    response_model=Page[Requirement],
+    description="Search covers title, description, criteria text and id. Filters compose.",
+)
+def list_requirements(
+    context: ProjectAccess,
+    page: Paged,
+    q: Annotated[str | None, Query(description="Free-text search.")] = None,
+    category: Annotated[str | None, Query()] = None,
+    priority: Annotated[str | None, Query()] = None,
+    approval_status: Annotated[str | None, Query()] = None,
+) -> Page[Requirement]:
+    raise todo("B4", "Requirements")
+
+
+@app.post(
+    "/api/projects/{pid}/requirements",
+    tags=["Requirements"],
+    summary="Create a requirement",
+    status_code=201,
+    response_model=Requirement,
+)
+def create_requirement(context: ProjectAccess, body: RequirementCreate) -> Requirement:
+    raise todo("B4", "Requirements")
+
+
+@app.get(
+    "/api/projects/{pid}/requirements/{rid}",
+    tags=["Requirements"],
+    summary="Get a requirement",
+    response_model=Requirement,
+)
+def get_requirement(context: ProjectAccess, rid: str) -> Requirement:
+    raise todo("B4", "Requirements")
+
+
+@app.patch(
+    "/api/projects/{pid}/requirements/{rid}",
+    tags=["Requirements"],
+    summary="Update a requirement",
+    response_model=Requirement,
+    description=(
+        "Sending acceptance_criteria replaces the whole set; the server reconciles by id in one "
+        "transaction. Editing title, description or criteria resets approval to draft."
+    ),
+)
+def update_requirement(context: ProjectAccess, rid: str, body: RequirementUpdate) -> Requirement:
+    raise todo("B4", "Requirements")
+
+
+@app.delete(
+    "/api/projects/{pid}/requirements/{rid}",
+    tags=["Requirements"],
+    summary="Delete a requirement",
+    status_code=204,
+)
+def delete_requirement(context: ProjectAccess, rid: str) -> None:
+    raise todo("B4", "Requirements")
+
+
+@app.post(
+    "/api/projects/{pid}/requirements/{rid}/approval",
+    tags=["Requirements"],
+    summary="Approve a requirement",
+    response_model=Requirement,
+    description=(
+        "Approval records that a requirement is correctly captured. It is not a test result. "
+        "A requirement needing clarification cannot be approved until it has been edited."
+    ),
+)
+def approve_requirement(context: ProjectAccess, rid: str, body: ApprovalRequest) -> Requirement:
+    raise todo("B4", "Approval")
+
+
+# ---------------------------------------------------------------------------
+# Imports
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/api/projects/{pid}/imports",
+    tags=["Imports"],
+    summary="Import requirements from documents",
+    status_code=201,
+    response_model=ImportResult,
+    description=(
+        "Forwards the documents to aiservice, which extracts requirements and cites the exact "
+        "source passages. Everything lands as a draft; nothing is auto-approved. "
+        "BE never calls a model itself."
+    ),
+)
+async def create_import(
+    context: ProjectAccess,
+    brd: Annotated[UploadFile, File(description="Business requirements document.")],
+    srs: Annotated[UploadFile, File(description="Software requirements specification.")],
+    design_spec: Annotated[UploadFile | None, File(description="Optional design specification.")] = None,
+) -> ImportResult:
+    raise todo("B7", "Document import")
+
+
+@app.get(
+    "/api/projects/{pid}/imports/{iid}",
+    tags=["Imports"],
+    summary="Get an import and what it produced",
+    response_model=ImportResult,
+)
+def get_import(context: ProjectAccess, iid: str) -> ImportResult:
+    raise todo("B7", "Document import")
+
+
+@app.get(
+    "/api/projects/{pid}/imports/{iid}/documents/{did}",
+    tags=["Imports"],
+    summary="Download a source document",
+    status_code=302,
+    description="Redirects to a short-lived signed URL. Source documents are retained so a reviewer can open the original.",
+)
+def download_document(context: ProjectAccess, iid: str, did: str) -> None:
+    raise todo("B7", "Document storage")
+
+
+# ---------------------------------------------------------------------------
+# Environments
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/api/projects/{pid}/environments",
+    tags=["Environments"],
+    summary="List a project's environments",
+    response_model=Page[Environment],
+)
+def list_environments(context: ProjectAccess, page: Paged) -> Page[Environment]:
+    raise todo("B5", "Environments")
+
+
+@app.post(
+    "/api/projects/{pid}/environments",
+    tags=["Environments"],
+    summary="Add an environment",
+    status_code=201,
+    response_model=Environment,
+    description="Credentials are write-only: stored encrypted, never returned.",
+)
+def create_environment(context: ProjectManage, body: EnvironmentCreate) -> Environment:
+    raise todo("B5", "Environments")
+
+
+@app.get(
+    "/api/projects/{pid}/environments/{eid}",
+    tags=["Environments"],
+    summary="Get an environment",
+    response_model=Environment,
+)
+def get_environment(context: ProjectAccess, eid: str) -> Environment:
+    raise todo("B5", "Environments")
+
+
+@app.patch(
+    "/api/projects/{pid}/environments/{eid}",
+    tags=["Environments"],
+    summary="Update an environment",
+    response_model=Environment,
+    description="Changing base_url clears verification and bumps revision, invalidating any saved plan.",
+)
+def update_environment(context: ProjectManage, eid: str, body: EnvironmentUpdate) -> Environment:
+    raise todo("B5", "Environments")
+
+
+@app.post(
+    "/api/projects/{pid}/environments/{eid}/verify",
+    tags=["Environments"],
+    summary="Check that the saved login works",
+    status_code=202,
+    response_model=Acknowledged,
+)
+def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
+    raise todo("B6", "Login verification")
+
+
+# ---------------------------------------------------------------------------
+# Analysis runs
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/api/projects/{pid}/environments/{eid}/runs",
+    tags=["Analysis"],
+    summary="List runs for an environment",
+    response_model=Page[Run],
+)
+def list_runs(
+    context: ProjectAccess,
+    eid: str,
+    page: Paged,
+    status: Annotated[str | None, Query(description="Filter by run status.")] = None,
+) -> Page[Run]:
+    raise todo("B6", "Runs")
+
+
+@app.post(
+    "/api/projects/{pid}/environments/{eid}/runs",
+    tags=["Analysis"],
+    summary="Queue a run",
+    status_code=202,
+    response_model=Run,
+    description=(
+        "Only approved requirements may be selected, at most ten per run. The run and its "
+        "dispatch intent are saved in one transaction before aiservice is contacted, so a "
+        "failed dispatch is retried from what was saved rather than lost."
+    ),
+)
+def create_run(context: ProjectAccess, eid: str, body: RunCreate) -> Run:
+    raise todo("B6", "Queueing a run")
+
+
+@app.get(
+    "/api/projects/{pid}/environments/{eid}/runs/{runid}",
+    tags=["Analysis"],
+    summary="Get a run",
+    response_model=Run,
+)
+def get_run(context: ProjectAccess, eid: str, runid: str) -> Run:
+    raise todo("B6", "Runs")
+
+
+@app.post(
+    "/api/projects/{pid}/environments/{eid}/runs/{runid}/cancel",
+    tags=["Analysis"],
+    summary="Cancel a run",
+    status_code=202,
+    response_model=Acknowledged,
+)
+def cancel_run(context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
+    raise todo("B6", "Cancelling a run")
+
+
+@app.get(
+    "/api/projects/{pid}/environments/{eid}/runs/{runid}/results",
+    tags=["Analysis"],
+    summary="List a run's per-requirement results",
+    response_model=Page[Result],
+)
+def list_results(context: ProjectAccess, eid: str, runid: str, page: Paged) -> Page[Result]:
+    raise todo("B6", "Results")
+
+
+@app.get(
+    "/api/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}",
+    tags=["Analysis"],
+    summary="Get one result, with its evidence",
+    response_model=Result,
+)
+def get_result(context: ProjectAccess, eid: str, runid: str, resid: str) -> Result:
+    raise todo("B6", "Results")
+
+
+@app.get(
+    "/api/projects/{pid}/environments/{eid}/runs/{runid}/events",
+    tags=["Analysis"],
+    summary="Stream live run events",
+    description=(
+        "Server-sent events. Reconnect with Last-Event-ID to replay what was missed; "
+        "refetch the run on completion rather than trusting the stream alone."
+    ),
+)
+def stream_run_events(context: ProjectAccess, eid: str, runid: str) -> None:
+    raise todo("B6", "The live event stream")
+
+
+@app.get(
+    "/api/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage",
+    tags=["Analysis"],
+    summary="What a run cost",
+    response_model=RunUsage,
+    description="Pending is not zero. Cost may arrive after a run finishes and is final only once everything expected has.",
+)
+def run_usage(context: ProjectAccess, eid: str, runid: str) -> RunUsage:
+    raise todo("B6", "Cost reporting")
+
+
+# ---------------------------------------------------------------------------
+# Evidence
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/api/evidence/{eid}",
+    tags=["Evidence"],
+    summary="Fetch an evidence artifact",
+    status_code=302,
+    description="Redirects to a short-lived signed URL. Evidence is served by id, never by storage path.",
+)
+def get_evidence(user: CurrentUser, eid: str) -> None:
+    raise todo("B6", "Evidence storage")
+
+
+# ---------------------------------------------------------------------------
+# Internal — aiservice only
+#
+# Three rules hold whatever the field shapes become: persist before publishing,
+# deduplicate on the event id, and mark cost final only when the expected usage
+# has actually arrived. Authenticated with the job-scoped credential BE issued
+# at dispatch, not a shared key.
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/internal/v1/runs/{runid}/execution-events",
+    tags=["Internal"],
+    summary="Receive execution events from aiservice",
+    status_code=202,
+    response_model=Acknowledged,
+    description="Deduplicated on event_id and ordered by sequence. Persisted before being published to the live stream.",
+)
+def receive_execution_event(runid: str, body: ExecutionEvent) -> Acknowledged:
+    raise todo("B6", "Execution event ingestion")
+
+
+@app.post(
+    "/internal/v1/runs/{runid}/ai-usage",
+    tags=["Internal"],
+    summary="Receive AI usage from aiservice",
+    status_code=202,
+    response_model=Acknowledged,
+    description="Idempotent on usage_id. A revision replaces an estimate rather than adding a second charge.",
+)
+def receive_ai_usage(runid: str, body: AIUsageReport) -> Acknowledged:
+    raise todo("B6", "Usage ingestion")
+
+
+@app.post(
+    "/internal/v1/runs/{runid}/ai-cost-finalizations",
+    tags=["Internal"],
+    summary="Close out a run's cost",
+    status_code=202,
+    response_model=Acknowledged,
+    description="Cost becomes final only when the reported usage count matches. Run completion alone is not sufficient.",
+)
+def finalize_ai_cost(runid: str, body: CostFinalization) -> Acknowledged:
+    raise todo("B6", "Cost finalization")

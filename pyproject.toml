@@ -6,6 +6,7 @@ dependencies = [
   "fastapi>=0.115,<1", "uvicorn[standard]>=0.34,<1",
   "sqlalchemy>=2,<3", "psycopg2-binary", "alembic",
   "pydantic>=2.13,<3", "python-dotenv", "httpx", "cryptography",
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
