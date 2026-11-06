@@ -56,3 +56,11 @@ or talks to Supabase directly; BE issues httpOnly cookies and verifies every
 one of them against Supabase. There is no local dev bypass: local dev needs
 a real Supabase project and a real login through `/auth/login`. See
 `docs/authentication.md` for setup and the full flow.
+
+
+## API Reference
+The API is fully typed and documented. Run the server and visit `/docs` for
+the OpenAPI spec and interactive Swagger UI. Visit `/redoc` for ReDoc.
+
+http://localhost:8000/docs#/
+    
