@@ -1,5 +1,11 @@
 # Backend-owned Supabase PKCE authentication
 
+Ported from `feat/backend-auth` onto the `app/`-package layout
+(`app/core/auth.py`, `app/core/auth_config.py`, `app/core/auth_pkce.py`,
+`app/core/supabase_auth.py`, `app/services/auth.py`); the routes themselves
+are declared in `main.py` alongside everything else, not a separate router.
+The mechanism below is unchanged.
+
 Shared Supabase email templates stay unchanged and must use their existing
 standard `ConfirmationURL` links. This flow does not require custom email link
 markup, TokenHash fragments or browser SDK code exchange. No dashboard settings,
@@ -30,9 +36,8 @@ localhost development. Do not mix localhost and 127.0.0.1.
 Install dependencies before generating a key:
 
 ```bash
-cd /Users/vanshika/Desktop/capstone/BlindSpotBE
+cd BlindSpotBE
 make initialize
-.venv/bin/python -m pip install -r requirements-dev.txt
 ```
 
 Generate the key ONCE into the gitignored local `.env`, without printing it.
@@ -143,12 +148,13 @@ secure-password/MFA/reauthentication policies still apply; nonce UI is not added
 
 ## API and request security
 
-Authentication Swagger group contains nine operations: signup, login, me, refresh,
-logout, GET `/auth/callback/{purpose}/{transaction_id}`, GET `/auth/recovery`,
-POST `/auth/password/reset-request`, and POST `/auth/password/update`.
-The original 37 paths/handler contracts remain (46 operations total). Feature
-entry points now require verified sessions and mutation CSRF checks; see the
-[endpoint-security inventory](endpoint-security.md).
+The "Auth" tag in the OpenAPI schema contains nine operations: signup, login,
+me, refresh, logout, GET `/auth/callback/{purpose}/{transaction_id}`, GET
+`/auth/recovery`, POST `/auth/password/reset-request`, and POST
+`/auth/password/update`. Every other route declared in `main.py` depends on
+`current_user` (directly, or via `app.core.deps`'s `ProjectAccess`/
+`ProjectManage`), which performs the same Supabase verification plus the
+same CSRF check on mutating requests.
 
 All browser API calls use credentials:include. Every POST still requires an
 explicit allowed Origin, application/json and X-CSRF-Protection:1. There is no
@@ -194,21 +200,21 @@ APM and hosting log layers before production. This task changes no cloud setting
 ## Checks and remaining scope
 
 ```bash
-.venv/bin/python -m unittest discover -s tests -v
+source .venv/bin/activate && pytest -q tests/test_auth.py
 ```
 
-Mocked tests cover challenge/verifier matching, transaction encryption, overlap,
-expiry/purpose/tampering, missing browser cookies, code reuse, safe redirects,
-log redaction, recovery-session binding/refresh, password updates, normal auth and
-all original route contracts. Browser delivery, actual email templates/allowlist,
-SMTP policies and upstream/proxy redaction still need manual verification.
+`tests/test_auth.py` covers login/signup/logout/refresh/CSRF/CORS/production
+cookies/concurrent sessions and config validation. PKCE/recovery/password-reset
+flow tests (challenge/verifier matching, transaction encryption, overlap,
+expiry/purpose/tampering, code reuse, log redaction, recovery-session
+binding) existed on `feat/backend-auth` as `tests/test_email_auth.py` but were
+not ported in this pass — the underlying logic is unchanged, just relocated;
+porting that test file is follow-up work.
 
 Workspace still uses the Supabase browser SDK for separate identity/data access;
 its packages/helpers remain. Backend session checks never fall back to that SDK.
-All user-facing feature operations now require verified sessions and CSRF for
-mutations; see [the security inventory](endpoint-security.md). Resource-level
-roles/authorization, service callbacks, database/AI integration, CAPTCHA,
-MFA/reauthentication UI and deployment are outside this task.
+Resource-level roles/authorization, service callbacks, database/AI integration,
+CAPTCHA, MFA/reauthentication UI and deployment are outside this task.
 
 Official references: [PKCE](https://supabase.com/docs/guides/auth/sessions/pkce-flow),
 [email templates](https://supabase.com/docs/guides/auth/auth-email-templates),
