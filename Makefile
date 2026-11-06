@@ -7,4 +7,4 @@ initialize:
 	$(VENV)/bin/python -m pip install -r requirements.txt
 
 run:
-	$(VENV)/bin/python backend/main.py
+	$(VENV)/bin/python -m uvicorn backend.main:app --host localhost --port 8000 --reload

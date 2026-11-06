@@ -6,7 +6,7 @@ Initialize the Python environment and install dependencies:
 make initialize
 ```
 
-Start the Flask development server at http://127.0.0.1:5000:
+Start the FastAPI development server at http://localhost:8000:
 
 ```bash
 make run
@@ -21,13 +21,13 @@ source .venv/bin/activate
 ## Cloud Run continuous deployment (Google Cloud Buildpacks)
 
 Build from the repository root, where `requirements.txt`, `.python-version`
-and `Procfile` live. Python 3.13 is selected by `.python-version`; Gunicorn
-imports the existing Flask application as `backend.main:app`.
+and `Procfile` live. Python 3.13 is selected by `.python-version`; Uvicorn
+imports the FastAPI application as `backend.main:app`.
 
 Production command (run from the repository root):
 
 ```bash
-gunicorn --bind 0.0.0.0:$PORT --access-logfile - --error-logfile - backend.main:app
+uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-5000}
 ```
 
 Cloud Run supplies `PORT` automatically. The backend reads `AI_SERVICE_URL` and
@@ -43,8 +43,8 @@ For a clean local production smoke test:
 python3.13 -m venv /tmp/blindspotbe-check
 /tmp/blindspotbe-check/bin/python -m pip install -r requirements.txt
 export PORT=8080
-/tmp/blindspotbe-check/bin/gunicorn --bind 0.0.0.0:$PORT --access-logfile - --error-logfile - backend.main:app
-# In another terminal: curl --fail http://127.0.0.1:8080/
+/tmp/blindspotbe-check/bin/uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-5000}
+# In another terminal: curl --fail http://localhost:8080/
 ```
 
 In the existing GitHub trigger, keep the build context at the repository root
@@ -56,16 +56,63 @@ command/argument overrides empty so the generated image entrypoint is used.
 This Python backend needs no `package.json`; do not include the local Node
 startup experiment referencing `server.js` in the deployment commit.
 
-Commit only the relevant deployment files, then push the branch configured in
-the existing GitHub trigger:
+Interactive API documentation is available at http://localhost:8000/docs;
+the OpenAPI schema is at http://localhost:8000/openapi.json.
+
+Supabase cookie authentication is available under `/auth` (see below). Existing
+feature placeholder responses, including HTTP 501 responses, remain unchanged.
+Role authorization, database operations, AI service calls, and event streaming
+are not implemented. All 33 feature operations now require verified backend
+sessions (and CSRF on mutations); project-level authorization remains pending.
+Internal callbacks remain nonfunctional 501 stubs pending separate service auth.
+
+## Application URLs and Swagger groups
+
+Application routes now omit the leading `/api` prefix: for example,
+`/api/projects` becomes `/projects`. Existing clients using `/api/...` URLs
+must update; no compatibility aliases are provided. `/internal/v1` callbacks
+and framework documentation URLs remain unchanged.
+
+Swagger uses separate Projects and Environments groups, plus Health, Dashboard,
+Accounts, Flows, Runs, Run Evidence, AI Usage, Regressions, Run Discussion,
+Notifications, Live Updates, and Internal Callbacks.
+
+Only POST `/dashboard`, POST `/accounts`, POST `/projects/{project_name}`, and
+POST `/projects/{project_name}/flows/{flow_id}` are deprecated in OpenAPI.
+All four remain visible and callable. All 37 application operations retain their
+methods, response bodies, and status codes, including placeholder 501 responses.
+See [the API reference](docs/frontend-api-design.md) for intended behavior.
+
+Run the route contract tests from the repository root:
 
 ```bash
-git add Procfile .python-version requirements.txt .gitignore README.md
-git diff --cached
-git commit -m "Configure Python buildpack startup for Cloud Run"
-git push origin HEAD
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
-Verify the current branch matches the trigger branch before pushing. No Dockerfile
-or additional Cloud Build workflow is required. Never commit `.env` files or
-credentials; configure any future secrets through Cloud Run's runtime settings.
+## Supabase authentication
+
+See [authentication setup, API contract, CSRF protocol, and local login test](docs/authentication.md).
+Use the existing frontend Supabase project, configure the gitignored `.env` from
+`.env.example`, and use localhost for both apps: frontend port 3000, backend port
+8000. `make run` now uses localhost:8000. No service-role key is needed.
+
+The nine `/auth` operations use the Authentication Swagger group. Access/refresh
+tokens are stored only in HttpOnly cookies; auth JSON never returns them. Auth
+API POSTs require an allowed Origin, JSON, and `X-CSRF-Protection: 1`. Frontend
+requests must use `credentials: "include"`. All 37 original operations remain
+present, for 46 application operations total. The frontend now uses backend
+signup, confirmation and recovery too, using backend-owned PKCE. Keep shared
+email templates unchanged; add the callback allowlist patterns documented in
+the authentication guide and configure AUTH_FLOW_ENCRYPTION_KEY. Workspace
+SDK/data access remains separate.
+
+## Feature endpoint security
+
+All 33 user-facing feature operations, including legacy placeholders and generated
+HEAD routes, now require the Supabase-verified backend session. Mutations require
+an allowed Origin, application/json and X-CSRF-Protection:1. Bodies/statuses remain
+unchanged after those checks; unimplemented operations stay unimplemented.
+See [the full route/security inventory](docs/endpoint-security.md) for public and
+auth routes, the three disabled internal callbacks, and missing authoritative
+project membership/policy decisions. Being signed in is not project authorization.

@@ -1,1 +1,1 @@
-web: gunicorn --bind 0.0.0.0:$PORT --access-logfile - --error-logfile - backend.main:app
+web: uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-5000}
