@@ -53,7 +53,11 @@ class AnalysisRun(Identity, Base):
     status: Mapped[str] = mapped_column(Text, server_default="queued", index=True)
     # Frozen at queue time. Never rewritten — history survives later edits.
     requirement_snapshots: Mapped[list] = mapped_column(JSONB)
-    requested_by: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("auth.users.id"))
+    # No DB-level FK to auth.users: Supabase does not let a custom role hold
+    # privileges on the auth schema (grants to it are silently unwound).
+    # Trusted the same way the rest of BE trusts a user id — from the
+    # verified JWT, not from the request body.
+    requested_by: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
     queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

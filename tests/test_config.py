@@ -10,15 +10,11 @@ def test_settings_load_from_env():
     settings = _settings_from_sources(
         {
             "DATABASE_URL": "postgresql+psycopg2://u:p@localhost:5432/db",
-            "DEV_AUTH_USER_ID": "user-123",
-            "CORS_ORIGINS": "http://localhost:5173",
             "LOG_LEVEL": "DEBUG",
         }
     )
 
     assert settings.database_url == "postgresql+psycopg2://u:p@localhost:5432/db"
-    assert settings.dev_auth_user_id == "user-123"
-    assert settings.cors_origins == "http://localhost:5173"
     assert settings.log_level == "DEBUG"
 
 

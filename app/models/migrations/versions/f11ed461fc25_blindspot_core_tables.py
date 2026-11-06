@@ -1,8 +1,8 @@
 """blindspot_core_tables
 
-Revision ID: d852b3ab9130
+Revision ID: f11ed461fc25
 Revises: 
-Create Date: 2026-11-05 20:51:18.640131
+Create Date: 2026-11-05 20:56:23.576629
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'd852b3ab9130'
+revision: str = 'f11ed461fc25'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,7 +26,6 @@ def upgrade() -> None:
     sa.Column('created_by', sa.UUID(), nullable=True),
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['created_by'], ['auth.users.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['project_id'], ['public.projects.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     schema='blindspot'
@@ -85,7 +84,6 @@ def upgrade() -> None:
     sa.CheckConstraint("status IN ('queued','running','completed','failed','cancelled')", name='ck_analysis_runs_status'),
     sa.ForeignKeyConstraint(['environment_id'], ['public.environments.id'], ),
     sa.ForeignKeyConstraint(['project_id'], ['public.projects.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['requested_by'], ['auth.users.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('project_id', 'id', name='uq_analysis_runs_project_id_id'),
     sa.UniqueConstraint('project_id', 'run_number', name='uq_analysis_runs_project_run_number'),

@@ -8,17 +8,36 @@ Most handlers raise 501 today. That is honest — they are declared, typed and
 documented, but not implemented. An endpoint returning a cheerful 200 with
 echoed input would be worse than nothing, because it would read as working.
 """
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import FastAPI, File, Query, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, File, Query, Request, Response, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 
-from app.core.auth import get_token_verifier
-from app.core.config import get_settings
+from app.core.auth import (
+    csrf_guard,
+    current_auth_user,
+    email_destination,
+    recovery_user,
+    register_auth,
+    set_session,
+)
+from app.core import auth_pkce as pkce
 from app.core.deps import CurrentUser, Db, Paged, ProjectAccess, ProjectManage
-from app.core.errors import ServiceError, register_exception_handlers
+from app.core.errors import ServiceError, register_exception_handlers, validation_error_handler
 from app.core.observability import RequestIdMiddleware, configure_logging
+from app.core.supabase_auth import supabase_request
+from app.schemas.auth import (
+    AuthResult,
+    Credentials,
+    EmptyRequest,
+    Message,
+    PasswordUpdate,
+    ResetRequest,
+    SignupCredentials,
+    User,
+)
 from app.schemas.common import Acknowledged, ErrorResponse, Page
 from app.schemas.environments import Environment, EnvironmentCreate, EnvironmentUpdate
 from app.schemas.identity import (
@@ -44,13 +63,16 @@ from app.schemas.requirements import (
     RequirementUpdate,
 )
 from app.schemas.runs import Result, Run, RunCreate, RunUsage
+from app.services.auth import (
+    complete_pkce_callback,
+    logout_session,
+    refresh_session,
+    request_password_reset,
+    signup_session,
+    update_password,
+)
 
 configure_logging("api")
-# Eagerly construct the configured TokenVerifier so a misconfigured
-# DevTokenVerifier refuses to start the process, not just the first request.
-get_token_verifier()
-
-settings = get_settings()
 
 DESCRIPTION = """
 Requirements-driven product validation. A product manager imports requirements
@@ -63,6 +85,7 @@ inferred stays visibly separate from what was actually observed.
 
 TAGS = [
     {"name": "Health", "description": "Liveness. No authentication."},
+    {"name": "Auth", "description": "Backend-owned Supabase sessions: signup, login, logout, password reset."},
     {"name": "Identity", "description": "The signed-in user, and their notifications."},
     {"name": "Projects", "description": "Projects, membership and invitations."},
     {"name": "Requirements", "description": "What the product should do, and who approved it."},
@@ -85,14 +108,20 @@ app = FastAPI(
     },
 )
 app.add_middleware(RequestIdMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
-    allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-    expose_headers=["X-Request-ID"],
-)
 register_exception_handlers(app)
+register_auth(app)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_redacting_auth_input(request: Request, exc: RequestValidationError):
+    # FastAPI's default validation response echoes the rejected input, which
+    # on an /auth/* body could be a password. Fixed message there; the
+    # envelope-shaped handler from register_exception_handlers everywhere else.
+    if request.url.path.startswith("/auth/"):
+        return JSONResponse(
+            status_code=422, content={"error": {"code": "validation_error", "message": "Invalid authentication request."}}
+        )
+    return await validation_error_handler(request, exc)
 
 
 def todo(handoff: str, what: str) -> ServiceError:
@@ -113,6 +142,76 @@ def todo(handoff: str, what: str) -> ServiceError:
 def liveness(db: Db) -> dict:
     db.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Auth — backend-owned. The frontend never holds a token; BE issues httpOnly
+# session cookies and verifies every one of them against Supabase. Ported
+# from feat/backend-auth; logic unchanged, relocated onto this file's
+# every-route-lives-here convention and app/core/app/services layout.
+# ---------------------------------------------------------------------------
+
+
+@app.post("/auth/signup", response_model=AuthResult, tags=["Auth"], dependencies=[Depends(csrf_guard)])
+async def signup(credentials: SignupCredentials, request: Request, response: Response) -> AuthResult:
+    return await signup_session(request, response, credentials)
+
+
+@app.post("/auth/login", response_model=AuthResult, tags=["Auth"], dependencies=[Depends(csrf_guard)])
+async def login(credentials: Credentials, request: Request, response: Response) -> AuthResult:
+    data = await supabase_request(
+        request, "POST", "/token", params={"grant_type": "password"},
+        body={"email": str(credentials.email), "password": credentials.password.get_secret_value()},
+    )
+    user = set_session(response, data, request.app.state.auth_settings)
+    return AuthResult(user=user, authenticated=True)
+
+
+@app.get("/auth/me", response_model=User, tags=["Auth"])
+async def auth_me(user: User = Depends(current_auth_user)) -> User:
+    return user
+
+
+@app.post("/auth/refresh", response_model=AuthResult, tags=["Auth"], dependencies=[Depends(csrf_guard)])
+async def refresh(payload: EmptyRequest, request: Request, response: Response) -> AuthResult:
+    return await refresh_session(request, response)
+
+
+@app.post("/auth/logout", response_model=Message, tags=["Auth"], dependencies=[Depends(csrf_guard)])
+async def logout(payload: EmptyRequest, request: Request, response: Response) -> Message:
+    return Message(message=await logout_session(request, response))
+
+
+@app.get(
+    "/auth/callback/{purpose}/{transaction_id}",
+    status_code=303,
+    response_class=RedirectResponse,
+    tags=["Auth"],
+)
+async def pkce_callback(purpose: Literal["signup", "recovery"], transaction_id: str, request: Request):
+    destination = email_destination(request, "email" if purpose == "signup" else "recovery")
+    response = RedirectResponse(destination, status_code=303)
+    await complete_pkce_callback(request, response, purpose, transaction_id)
+    return response
+
+
+@app.get("/auth/recovery", response_model=User, tags=["Auth"])
+async def recovery_status(user: User = Depends(recovery_user)) -> User:
+    return user
+
+
+@app.post(
+    "/auth/password/reset-request", response_model=Message, tags=["Auth"], dependencies=[Depends(csrf_guard)]
+)
+async def password_reset_request(payload: ResetRequest, request: Request, response: Response) -> Message:
+    return await request_password_reset(request, response, payload)
+
+
+@app.post("/auth/password/update", response_model=Message, tags=["Auth"], dependencies=[Depends(csrf_guard)])
+async def password_update(
+    payload: PasswordUpdate, request: Request, response: Response, user: User = Depends(recovery_user)
+) -> Message:
+    return Message(message=await update_password(request, response, payload))
 
 
 # ---------------------------------------------------------------------------

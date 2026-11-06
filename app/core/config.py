@@ -12,9 +12,7 @@ class Settings(BaseModel):
 
     database_url: str
     database_pooled_url: str | None = None
-    dev_auth_user_id: str | None = None
     ai_service_url: str | None = None
-    cors_origins: str = ""
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
 

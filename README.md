@@ -48,3 +48,11 @@ BlindSpotBE/
 
 Copy `.env.example` to `.env` and fill in values for local development. Never
 commit `.env` or any real secrets.
+
+## Authentication
+
+BE owns the full login/session lifecycle — the frontend never holds a token
+or talks to Supabase directly; BE issues httpOnly cookies and verifies every
+one of them against Supabase. There is no local dev bypass: local dev needs
+a real Supabase project and a real login through `/auth/login`. See
+`docs/authentication.md` for setup and the full flow.

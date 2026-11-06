@@ -17,9 +17,8 @@ class Import(Identity, Timestamp, Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("public.projects.id", ondelete="CASCADE"), index=True
     )
-    created_by: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="SET NULL")
-    )
+    # No DB-level FK to auth.users — see the note in app/models/runs.py.
+    created_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
 
 
 class ImportDocument(Identity, Timestamp, Base):

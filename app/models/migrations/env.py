@@ -7,6 +7,7 @@ from alembic import context
 from app.core.config import get_settings
 from app.core.db import Base
 from app import models  # noqa: F401 — registers tables on Base.metadata
+from app.models.migration_filters import TARGET_SCHEMA, include_name, include_object
 
 config = context.config
 
@@ -14,25 +15,6 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
-
-# BE's Alembic owns the `blindspot` schema only. Everything else — public,
-# auth, storage, realtime — belongs to Supabase's own migration history.
-# Without this filter, autogenerate would cheerfully propose dropping every
-# table it does not recognise.
-TARGET_SCHEMA = "blindspot"
-
-
-def include_name(name, type_, parent_names):
-    if type_ == "schema":
-        return name == TARGET_SCHEMA
-    return True
-
-
-def include_object(object, name, type_, reflected, compare_to):
-    schema = getattr(object, "schema", None)
-    if schema is None and hasattr(object, "table"):
-        schema = object.table.schema
-    return schema == TARGET_SCHEMA
 
 
 def _configure(**kwargs):
