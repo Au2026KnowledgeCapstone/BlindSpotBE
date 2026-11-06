@@ -1,12 +1,6 @@
-"""BlindSpot backend — the complete API surface.
+"""BlindSpot backend : the complete API surface.
 
-Every route the product exposes is declared in this one file, deliberately, so
-the whole surface can be read top to bottom. Handlers stay thin: validate, call
-a service, return. Logic belongs in app/services/.
-
-Most handlers raise 501 today. That is honest — they are declared, typed and
-documented, but not implemented. An endpoint returning a cheerful 200 with
-echoed input would be worse than nothing, because it would read as working.
+Every route the product exposes is declared in this one file.
 """
 from typing import Annotated, Literal
 
