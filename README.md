@@ -5,11 +5,15 @@ handlers stay thin and delegate to `app/services/`.
 
 ## Local development
 
-Install dependencies (editable install, including test extras):
+Install the project and its test extras from `pyproject.toml`:
 
 ```bash
-make initialize
+uv venv .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt
 ```
+
+`requirements-dev.txt` is a compatibility entry for editable `.[test]`; the
+optional test extra includes pytest, pytest-asyncio, and `psycopg[binary]`.
 
 Start the development server at http://127.0.0.1:8000:
 
@@ -23,11 +27,23 @@ To use the environment directly in your shell:
 source .venv/bin/activate
 ```
 
-Run the test suite:
+Run the full test suite against the isolated local PostgreSQL/PostgREST
+fixtures (the integration tests create and drop disposable databases):
 
 ```bash
-pytest -q
+export POSTGRES_TEST_ROOT=/home/nala/quoroum-backend/data/ops/mohagany-test-postgres
+export POSTGREST_BIN=/home/nala/quoroum-backend/data/ops/mohagany-reviewed-capstone/postgrest
+export DATABASE_URL='postgresql+psycopg://nala@/postgres?host=/home/nala/quoroum-backend/data/ops/mohagany-test-postgres/socket&port=55432'
+.venv/bin/python -m pytest -q
 ```
+
+The local PostgreSQL instance must be running with the test-only bootstrap
+support installed; PostgREST must be available at `POSTGREST_BIN`. The database
+and PostgREST integration tests create and drop disposable databases. Never
+point `DATABASE_URL` or `SUPABASE_DATABASE_URL` at production. The inherited B1
+migration tests require a separate disposable PostgreSQL database configured in
+`DATABASE_URL` and run Alembic against that local database; keep them separate
+from the auth, workspace API, and infrastructure integration checks above.
 
 ## Layout
 

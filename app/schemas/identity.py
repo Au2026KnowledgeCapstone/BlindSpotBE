@@ -29,6 +29,7 @@ class Project(BaseModel):
     description: str
     owner_id: str
     role: Role | None = Field(default=None, description="The caller's role in this project.")
+    organization_id: str | None = None
     created_at: datetime
 
 

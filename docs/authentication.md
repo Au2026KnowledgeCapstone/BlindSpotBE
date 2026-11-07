@@ -28,6 +28,7 @@ keys or callback URLs containing codes into chat.
 | AUTH_COOKIE_SAMESITE | lax |
 | AUTH_REFRESH_COOKIE_MAX_AGE | 2592000 seconds |
 | AUTH_FLOW_ENCRYPTION_KEY | A persistent Fernet key, shared by all backend workers |
+| ENVIRONMENT_CREDENTIAL_ENCRYPTION_KEY | Persistent Fernet key for write-only environment credentials; blank disables credential writes, valid key required when credentials are set |
 
 If exactly one frontend origin is allowed, it supplies the email frontend default.
 Production origins must be explicit HTTPS origins. Local HTTP is allowed only for
@@ -67,8 +68,7 @@ transactions and recovery grants. Missing/invalid encryption configuration fails
 email-flow initiation closed; ordinary login/identity/logout do not require it.
 Use a shared runtime secret for production replicas, configured manually.
 
-Frontend `.env.local` needs NEXT_PUBLIC_API_BASE_URL=http://localhost:8000; retain
-SDK project variables for workspace consumers. Start the frontend on localhost:3000.
+Generate `ENVIRONMENT_CREDENTIAL_ENCRYPTION_KEY` once using the Fernet generation command in [testing and rollout](testing.md); keep it in a secret manager, shared across workers. Do not rotate without decrypt/re-encrypt planning. Frontend `.env.local` needs NEXT_PUBLIC_API_BASE_URL=http://localhost:8000; retain SDK project variables for workspace consumers. Start the frontend on localhost:3000.
 
 ## Exact Supabase redirect allowlist entries
 
@@ -151,7 +151,7 @@ secure-password/MFA/reauthentication policies still apply; nonce UI is not added
 The "Auth" tag in the OpenAPI schema contains nine operations: signup, login,
 me, refresh, logout, GET `/auth/callback/{purpose}/{transaction_id}`, GET
 `/auth/recovery`, POST `/auth/password/reset-request`, and POST
-`/auth/password/update`. Every other route declared in `main.py` depends on
+`/auth/password/update`. Every other route declared in `main.py` or included from `app/services/` depends on
 `current_user` (directly, or via `app.core.deps`'s `ProjectAccess`/
 `ProjectManage`), which performs the same Supabase verification plus the
 same CSRF check on mutating requests.
