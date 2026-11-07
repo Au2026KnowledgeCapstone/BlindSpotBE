@@ -67,6 +67,24 @@ def test_project_collection_uses_cookie_and_canonical_page_contract():
     assert len([r for r in seen if r.url.path == "/auth/v1/user"]) == 1
 
 
+def test_project_collection_handles_legacy_project_without_organization():
+    def handler(request):
+        if request.url.path == "/auth/v1/user":
+            return httpx.Response(200, json=USER)
+        if request.url.path.endswith("/projects"):
+            return httpx.Response(200, json=[project_row() | {"organization_id": None}])
+        if request.url.path.endswith("/project_members"):
+            return httpx.Response(200, json=[])
+        if request.url.path.endswith("/organization_members"):
+            raise AssertionError("legacy project page must not query organization_members")
+        raise AssertionError(request.url.path)
+
+    response = setup_client(handler).get("/projects", headers={"Origin": ORIGIN})
+    assert response.status_code == 200, response.text
+    assert response.json()["items"][0]["organization_id"] is None
+    assert response.json()["items"][0]["role"] == "owner"
+
+
 def test_onboarding_requires_csrf_and_rejects_forged_identity_fields():
     requests = []
 

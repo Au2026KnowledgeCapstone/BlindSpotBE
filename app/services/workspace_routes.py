@@ -181,10 +181,15 @@ async def list_projects(request: Request, response: Response, limit: int = 50, c
     project_ids = [str(row["id"]) for row in rows]
     org_ids = sorted({row["organization_id"] for row in rows if row.get("organization_id")})
     if project_ids:
-        memberships, org_memberships = await asyncio.gather(
-            rest(request, token(request), "GET", "project_members", params={"select": "project_id,role", "user_id": f"eq.{user.user_id}", "project_id": f"in.({','.join(project_ids)})", "limit": str(len(project_ids))}),
-            rest(request, token(request), "GET", "organization_members", params={"select": "organization_id,role", "user_id": f"eq.{user.user_id}", "organization_id": f"in.({','.join(org_ids)})", "limit": str(len(org_ids))}) if org_ids else None,
-        )
+        project_members_query = rest(request, token(request), "GET", "project_members", params={"select": "project_id,role", "user_id": f"eq.{user.user_id}", "project_id": f"in.({','.join(project_ids)})", "limit": str(len(project_ids))})
+        if org_ids:
+            memberships, org_memberships = await asyncio.gather(
+                project_members_query,
+                rest(request, token(request), "GET", "organization_members", params={"select": "organization_id,role", "user_id": f"eq.{user.user_id}", "organization_id": f"in.({','.join(org_ids)})", "limit": str(len(org_ids))}),
+            )
+        else:
+            memberships = await project_members_query
+            org_memberships = None
         roles = {r["project_id"]: r["role"] for r in _rows(memberships)}
         org_roles = {r["organization_id"]: r["role"] for r in _rows(org_memberships)} if org_memberships is not None else {}
         for row in rows:
