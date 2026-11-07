@@ -5,5 +5,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Local database test tools and logs
+.tools/
 .mcp.json
 .claude

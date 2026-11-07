@@ -34,6 +34,25 @@ def test_get_settings_is_cached(monkeypatch):
     get_settings.cache_clear()
 
 
+def test_environment_credential_key_is_hidden_and_blank_is_optional():
+    from cryptography.fernet import Fernet
+
+    secret = Fernet.generate_key().decode()
+    settings = Settings(
+        database_url="postgresql://unused",
+        environment_credential_encryption_key="  ",
+    )
+    assert settings.environment_credential_encryption_key is None
+    assert secret not in repr(Settings(database_url="postgresql://unused", environment_credential_encryption_key=secret))
+
+
+def test_invalid_environment_credential_key_error_hides_input():
+    secret = "synthetic-invalid-environment-key"
+    with pytest.raises(ValidationError) as error:
+        Settings(database_url="postgresql://unused", environment_credential_encryption_key=secret)
+    assert secret not in str(error.value)
+
+
 def test_env_example_names_every_field():
     env_example = Path(__file__).resolve().parents[1] / ".env.example"
     text = env_example.read_text()
