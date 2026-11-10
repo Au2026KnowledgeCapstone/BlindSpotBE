@@ -211,6 +211,8 @@ async def password_update(
 # Identity and project routes are implemented in app/services/workspace_routes.py.
 
 
+
+# This route is a bit confuzzled right now, someone has to decide the shape of this
 @app.get("/dashboard", tags=["Identity"], summary="Legacy dashboard placeholder")
 def dashboard(user: CurrentUser):
     raise todo("B4", "Dashboard summary")
