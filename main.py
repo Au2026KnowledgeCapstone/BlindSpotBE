@@ -1,6 +1,6 @@
 """BlindSpot backend : the complete API surface.
 
-Every route the product exposes is declared in this one file.
+Public product routes are declared in this file and app/services/.
 """
 from typing import Annotated, Literal
 
@@ -35,11 +35,9 @@ from app.schemas.auth import (
 from app.schemas.common import Acknowledged, ErrorResponse, Page
 from app.schemas.environments import Environment, EnvironmentCreate, EnvironmentUpdate
 from app.schemas.identity import (
-    DashboardCounts,
     Invitation,
     InvitationCreate,
     Me,
-    MeUpdate,
     Member,
     Notification,
     NotificationUpdate,
@@ -57,6 +55,7 @@ from app.schemas.requirements import (
     RequirementUpdate,
 )
 from app.schemas.runs import Result, Run, RunCreate, RunUsage
+from app.services.workspace_routes import router as workspace_router
 from app.services.auth import (
     complete_pkce_callback,
     logout_session,
@@ -104,6 +103,7 @@ app = FastAPI(
 app.add_middleware(RequestIdMiddleware)
 register_exception_handlers(app)
 register_auth(app)
+app.include_router(workspace_router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -208,190 +208,14 @@ async def password_update(
     return Message(message=await update_password(request, response, payload))
 
 
-# ---------------------------------------------------------------------------
-# Identity
-# ---------------------------------------------------------------------------
+# Identity and project routes are implemented in app/services/workspace_routes.py.
 
 
-@app.get("/me", tags=["Identity"], summary="Who am I", response_model=Me)
-def get_me(user: CurrentUser) -> Me:
-    # Returns only what the token carries. Reading public.profiles for a
-    # display name waits on B1's signup trigger populating that table.
-    return Me(user_id=user.user_id, email=user.email)
 
-
-@app.patch("/me", tags=["Identity"], summary="Update my display name", response_model=Me)
-def update_me(user: CurrentUser, body: MeUpdate) -> Me:
-    raise todo("B3", "Updating a profile")
-
-
-@app.get(
-    "/notifications",
-    tags=["Identity"],
-    summary="List my notifications",
-    response_model=Page[Notification],
-)
-def list_notifications(
-    user: CurrentUser,
-    page: Paged,
-    unread: Annotated[bool, Query(description="Only notifications not yet read.")] = False,
-) -> Page[Notification]:
-    raise todo("B3", "Notifications")
-
-
-@app.get(
-    "/notifications/unread-count",
-    tags=["Identity"],
-    summary="How many notifications are unread",
-    response_model=UnreadCount,
-)
-def unread_count(user: CurrentUser) -> UnreadCount:
-    raise todo("B3", "Notifications")
-
-
-@app.patch(
-    "/notifications/{nid}",
-    tags=["Identity"],
-    summary="Mark a notification read",
-    response_model=Notification,
-)
-def update_notification(user: CurrentUser, nid: str, body: NotificationUpdate) -> Notification:
-    raise todo("B3", "Notifications")
-
-
-# ---------------------------------------------------------------------------
-# Projects, membership, invitations
-# ---------------------------------------------------------------------------
-
-
-@app.get(
-    "/projects",
-    tags=["Projects"],
-    summary="List projects I belong to",
-    response_model=Page[Project],
-)
-def list_projects(user: CurrentUser, page: Paged) -> Page[Project]:
-    raise todo("B3", "Listing projects")
-
-
-@app.post(
-    "/projects",
-    tags=["Projects"],
-    summary="Create a project",
-    status_code=201,
-    response_model=Project,
-    description=(
-        "Calls the existing create_project RPC rather than reimplementing it, so the "
-        "owner membership row is always written in the same transaction."
-    ),
-)
-def create_project(user: CurrentUser, body: ProjectCreate) -> Project:
-    raise todo("B3", "Creating a project")
-
-
-@app.get(
-    "/projects/{pid}",
-    tags=["Projects"],
-    summary="Get a project",
-    response_model=Project,
-)
-def get_project(context: ProjectAccess) -> Project:
-    raise todo("B3", "Reading a project")
-
-
-@app.patch(
-    "/projects/{pid}",
-    tags=["Projects"],
-    summary="Rename or redescribe a project",
-    response_model=Project,
-    description="A project carries only a name and description. The application URL lives on an environment.",
-)
-def update_project(context: ProjectManage, body: ProjectUpdate) -> Project:
-    raise todo("B3", "Updating a project")
-
-
-@app.delete(
-    "/projects/{pid}",
-    tags=["Projects"],
-    summary="Delete a project",
-    status_code=204,
-    description="Owner only. Deletion is owned by whoever owns the tenancy rewrite; declared here for completeness.",
-)
-def delete_project(context: ProjectManage) -> None:
-    raise todo("B3", "Deleting a project")
-
-
-@app.get(
-    "/projects/{pid}/members",
-    tags=["Projects"],
-    summary="List project members",
-    response_model=Page[Member],
-)
-def list_members(context: ProjectAccess, page: Paged) -> Page[Member]:
-    raise todo("B3", "Listing members")
-
-
-@app.delete(
-    "/projects/{pid}/members/{uid}",
-    tags=["Projects"],
-    summary="Remove a member",
-    status_code=204,
-)
-def remove_member(context: ProjectManage, uid: str) -> None:
-    raise todo("B3", "Removing a member")
-
-
-@app.get(
-    "/projects/{pid}/invitations",
-    tags=["Projects"],
-    summary="List pending invitations",
-    response_model=Page[Invitation],
-)
-def list_invitations(context: ProjectManage, page: Paged) -> Page[Invitation]:
-    raise todo("B3", "Invitations")
-
-
-@app.post(
-    "/projects/{pid}/invitations",
-    tags=["Projects"],
-    summary="Invite someone to a project",
-    status_code=201,
-    response_model=Invitation,
-    description="Calls the existing invite_member RPC. An expired pending invitation is renewed; an accepted one is immutable.",
-)
-def create_invitation(context: ProjectManage, body: InvitationCreate) -> Invitation:
-    raise todo("B3", "Invitations")
-
-
-@app.post(
-    "/invitations/{iid}/accept",
-    tags=["Projects"],
-    summary="Accept an invitation",
-    response_model=Member,
-    description=(
-        "Calls the existing accept_invitation RPC, which locks the invitation, requires a "
-        "confirmed email matching it, and will not downgrade a role you already hold."
-    ),
-)
-def accept_invitation(user: CurrentUser, iid: str) -> Member:
-    raise todo("B3", "Accepting an invitation")
-
-
-@app.get(
-    "/dashboard",
-    tags=["Projects"],
-    summary="Overview counts for a project",
-    response_model=DashboardCounts,
-    description=(
-        "Coverage counts the latest result per requirement, so running the same requirement "
-        "repeatedly does not inflate it. Untested stays distinct from passed."
-    ),
-)
-def dashboard(
-    user: CurrentUser,
-    project_id: Annotated[str, Query(description="Project to report on.")],
-) -> DashboardCounts:
-    raise todo("B4", "The dashboard counts")
+# This route is a bit confuzzled right now, someone has to decide the shape of this
+@app.get("/dashboard", tags=["Identity"], summary="Legacy dashboard placeholder")
+def dashboard(user: CurrentUser):
+    raise todo("B4", "Dashboard summary")
 
 
 # ---------------------------------------------------------------------------
@@ -535,18 +359,6 @@ def download_document(context: ProjectAccess, iid: str, did: str) -> None:
     response_model=Page[Environment],
 )
 def list_environments(context: ProjectAccess, page: Paged) -> Page[Environment]:
-    raise todo("B5", "Environments")
-
-
-@app.post(
-    "/projects/{pid}/environments",
-    tags=["Environments"],
-    summary="Add an environment",
-    status_code=201,
-    response_model=Environment,
-    description="Credentials are write-only: stored encrypted, never returned.",
-)
-def create_environment(context: ProjectManage, body: EnvironmentCreate) -> Environment:
     raise todo("B5", "Environments")
 
 

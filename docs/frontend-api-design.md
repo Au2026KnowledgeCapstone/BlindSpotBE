@@ -1,12 +1,19 @@
 # BlindSpot API reference
 
-Use this to connect [backend/main.py](../backend/main.py) to BlindSpotFE. **These are intended behaviors:** original handlers are placeholders; added handlers return `501`. FE currently uses fixtures/local state. Feature-route authorization, database integration, execution and streaming still need implementation. The separate [cookie-auth API](authentication.md) secures session/password-update operations. All 33 user-facing feature operations below now require verified backend sessions and CSRF on mutations; resource-level authorization is still pending. See [the security inventory](endpoint-security.md).
+This document records the broader product API proposal. Current implemented routes and persistence boundaries are documented below; requirements, execution, evidence and streaming routes remain placeholders. Cookie auth verifies Supabase sessions; canonical tenancy routes use caller-scoped PostgREST and RLS. See [the cookie-auth API](authentication.md), [testing and rollout](testing.md), and [the security inventory](endpoint-security.md).
 
-Application paths no longer have a leading `/api` prefix. Existing clients using
-`/api/...` URLs must update to the paths below; compatibility aliases are not
-provided. Internal `/internal/v1` routes and framework documentation URLs are
-unchanged. Swagger groups Projects and Environments separately, with other
-operations grouped by function.
+Application paths no longer have a leading `/api` prefix. Existing clients using `/api/...` must update to canonical paths; compatibility aliases are not provided. Internal `/internal/v1` routes and framework documentation URLs are unchanged.
+
+## Implemented canonical workspace contract
+
+- `GET /projects` → `Page<Project>`; `GET /projects/{pid}` → `Project`; `POST /projects` creates a project.
+- `GET /projects/{pid}/members`, `GET/POST /projects/{pid}/invitations`, `POST /invitations/{iid}/accept`, and `GET /invitations` use caller-scoped RLS. Inbox results are pending, unexpired invitations for the verified cookie email; `accepted_at` is filtered server-side, not included in `Invitation`.
+- `GET /organizations` → `Page<Organization>`; `POST /onboarding` atomically creates organization and initial project; `POST /organizations/{oid}/projects` creates an additional project. Both writes require stable `request_id` UUIDs for retries.
+- `GET /projects/{pid}/workspace` is a bounded first-page summary of applications, environments, saved scan requests, and existing test results. It has no cursor; use per-resource endpoints for pagination when available. Scan requests remain `queued`; they are not execution runs/results.
+- `POST /projects/{pid}/applications`, `/environments`, and `/scans` preserve current workspace writes. Environment credentials are write-only and encrypted by BE in a parameterized database transaction; environment `application_id` is nullable. Do not grant browser roles access to encrypted credential columns.
+- `GET/PATCH /me`, `GET /notifications`, `GET /notifications/unread-count`, and `PATCH /notifications/{nid}` complete the current identity surface.
+
+Workspace reads return `Page<T> = {items, next_cursor}`. Authenticated responses are no-store. Mutations require exact trusted `Origin`, JSON, and `X-CSRF-Protection: 1`.
 
 Only POST `/dashboard`, POST `/accounts`, POST `/projects/{project_name}`,
 and POST `/projects/{project_name}/flows/{flow_id}` are marked deprecated in
@@ -204,8 +211,7 @@ Comment body: `{"text":"..."}` → **201** saved comment. Notification PATCH: `{
 ## Shared implementation rules
 
 1) **Access (future feature integration)**
-    Feature handlers require the Supabase-verified backend session; mutations also enforce CSRF. Resource access policies are not yet implemented. The `/auth` API uses HttpOnly cookies; see [the cookie/CSRF contract](authentication.md). The earlier feature proposal below described bearer-token wiring and must be reconciled before implementation.
-    FE sends its Supabase bearer token. BE validates it and checks user → project → environment → run ownership, including every child/file. Internal callbacks use separate job-scoped service credentials.
+    Canonical tenancy routes require a Supabase-verified backend cookie session; mutations enforce CSRF. PostgREST forwards only that verified cookie token and the publishable key, so RLS remains authoritative. Never send Supabase bearer tokens from FE or use a service-role key. Run/resource authorization and worker callbacks remain future scope.
 
 2) **Persistence**
     use Project → Environment → Run → run details foreign keys. Flows belong to projects; runs keep a frozen flow revision/configuration. No database/models/migrations exist yet; PostgreSQL + SQLAlchemy/Alembic is the proposed foundation.
@@ -248,13 +254,13 @@ Comment body: `{"text":"..."}` → **201** saved comment. Notification PATCH: `{
 
 6) Add missing start-test, notification and trend UI; wire existing rerun, download and comment controls.
 
-## Before implementation
+## Remaining implementation scope
 
-1) Keep server startup after all FastAPI route declarations. Preserve existing operations and coordinate legacy project-name → ID changes.
+1) Requirements, imports, execution runs/results, evidence, AI usage, streaming and internal worker callbacks still return explicit 501 responses.
 
-2) Agree the worker/AI protocol, actual flow/data source and Supabase/database/storage/credential configuration.
+2) Agree the worker/AI protocol, actual flow/data source and storage/credential configuration before implementing those routes.
 
-3) Build persistence/auth first, then execution/results, then costs/reporting/notifications and FE wiring.
+3) Preserve startup after all FastAPI route declarations; coordinate remaining legacy project-name → ID changes.
 
 New-flow creation, planning and heal APIs are outside this work.
 

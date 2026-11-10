@@ -73,10 +73,8 @@ def test_unimplemented_endpoints_say_so(client):
         headers={"Origin": "http://localhost:3000", "X-CSRF-Protection": "1"},
     )
 
-    assert response.status_code == 501
-    body = response.json()["error"]
-    assert body["code"] == "not_implemented"
-    assert "lands in" in body["message"]
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "x"
     assert "data_received" not in response.text
 
 
