@@ -235,6 +235,32 @@ async def create_project(body: ProjectCreateSchema, request: Request, response: 
     return result
 
 
+@router.patch("/projects/{pid}", response_model=ProjectOut, tags=["Projects"])
+async def update_project(pid: UUID, body: ProjectUpdate, request: Request, response: Response, user: AuthenticatedUser = Depends(current_user)):
+    response.headers["Cache-Control"] = "no-store"
+    project = await get_project(pid, request, response, user)
+    if project["role"] not in {"owner", "admin"}:
+        raise AuthError(403, "Project admin required")
+    changes = body.model_dump(exclude_unset=True)
+    if not changes:
+        return project
+    rows = _rows(await rest(request, token(request), "PATCH", "projects", params={"id": f"eq.{pid}", "select": _project_select()}, body=changes))
+    if not rows:
+        raise AuthError(404, "Project not found")
+    row = rows[0]
+    row["membership_role"] = project["role"]
+    return _project_row(row, user)
+
+
+@router.delete("/projects/{pid}", status_code=204, tags=["Projects"])
+async def delete_project(pid: UUID, request: Request, response: Response, user: AuthenticatedUser = Depends(current_user)):
+    response.headers["Cache-Control"] = "no-store"
+    project = await get_project(pid, request, response, user)
+    if project["role"] != "owner":
+        raise AuthError(403, "Project owner required")
+    await rest(request, token(request), "DELETE", "projects", params={"id": f"eq.{pid}"})
+
+
 @router.get("/projects/{pid}/workspace", tags=["Projects"])
 async def project_workspace(pid: UUID, request: Request, response: Response, limit: int = 50, user: AuthenticatedUser = Depends(current_user)):
     limit = _size(limit)
@@ -337,6 +363,20 @@ async def list_members(pid: UUID, request: Request, response: Response, limit: i
     names = {row["user_id"]: row["display_name"] for row in profiles}
     members = [{"user_id": row["user_id"], "role": row["role"], "display_name": names.get(row["user_id"], "")} for row in rows]
     return _page(members, limit, "user_id")
+
+
+@router.delete("/projects/{pid}/members/{uid}", status_code=204, tags=["Projects"])
+async def remove_member(pid: UUID, uid: UUID, request: Request, response: Response, user: AuthenticatedUser = Depends(current_user)):
+    response.headers["Cache-Control"] = "no-store"
+    project = await get_project(pid, request, response, user)
+    if project["role"] not in {"owner", "admin"}:
+        raise AuthError(403, "Project admin required")
+    rows = _rows(await rest(request, token(request), "GET", "project_members", params={"project_id": f"eq.{pid}", "user_id": f"eq.{uid}", "select": "role", "limit": "1"}))
+    if not rows:
+        raise AuthError(404, "Member not found")
+    if rows[0]["role"] == "owner":
+        raise AuthError(403, "Cannot remove the project owner")
+    await rest(request, token(request), "DELETE", "project_members", params={"project_id": f"eq.{pid}", "user_id": f"eq.{uid}"})
 
 
 @router.get("/invitations", response_model=Page[InvitationOut], tags=["Projects"])
