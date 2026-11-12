@@ -392,6 +392,7 @@ def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
 # ---------------------------------------------------------------------------
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
@@ -407,6 +408,7 @@ def list_runs(
     raise todo("B6", "Runs")
 
 
+# Nishitha, WORK ON THIS
 @app.post(
     "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
@@ -423,6 +425,7 @@ def create_run(context: ProjectAccess, eid: str, body: RunCreate) -> Run:
     raise todo("B6", "Queueing a run")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}",
     tags=["Analysis"],
@@ -433,6 +436,7 @@ def get_run(context: ProjectAccess, eid: str, runid: str) -> Run:
     raise todo("B6", "Runs")
 
 
+# Nishitha, WORK ON THIS
 @app.post(
     "/projects/{pid}/environments/{eid}/runs/{runid}/cancel",
     tags=["Analysis"],
@@ -444,6 +448,7 @@ def cancel_run(context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
     raise todo("B6", "Cancelling a run")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/results",
     tags=["Analysis"],
@@ -454,6 +459,7 @@ def list_results(context: ProjectAccess, eid: str, runid: str, page: Paged) -> P
     raise todo("B6", "Results")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}",
     tags=["Analysis"],
@@ -464,6 +470,7 @@ def get_result(context: ProjectAccess, eid: str, runid: str, resid: str) -> Resu
     raise todo("B6", "Results")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/events",
     tags=["Analysis"],
@@ -477,6 +484,7 @@ def stream_run_events(context: ProjectAccess, eid: str, runid: str) -> None:
     raise todo("B6", "The live event stream")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage",
     tags=["Analysis"],
