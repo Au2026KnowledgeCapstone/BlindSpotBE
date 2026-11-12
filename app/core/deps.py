@@ -27,16 +27,13 @@ _MEMBERSHIP_SQL = text(
     """
     SELECT CASE
              WHEN p.owner_id = :user_id THEN 'owner'
-             WHEN om.role IN ('owner', 'admin') THEN 'admin'
              ELSE m.role
            END AS role
     FROM public.projects p
     LEFT JOIN public.project_members m
       ON m.project_id = p.id AND m.user_id = :user_id
-    LEFT JOIN public.organization_members om
-      ON om.organization_id = p.organization_id AND om.user_id = :user_id
     WHERE p.id = :project_id
-      AND (p.owner_id = :user_id OR m.user_id IS NOT NULL OR om.role IN ('owner', 'admin'))
+      AND (p.owner_id = :user_id OR m.user_id IS NOT NULL)
     """
 )
 

@@ -11,7 +11,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Identity"
         ],
         "summary": "Get Me",
@@ -91,7 +90,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Identity"
         ],
         "summary": "Update Me",
@@ -183,7 +181,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "List Projects",
@@ -290,7 +287,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "Create Project",
@@ -382,7 +378,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "Get Project",
@@ -467,6 +462,187 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "Projects",
+          "Identity",
+          "Projects"
+        ],
+        "summary": "Update Project",
+        "operationId": "update_project_projects__pid__patch",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pid"
+            }
+          },
+          {
+            "name": "x-csrf-protection",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Protection"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not yours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Declared, not yet implemented.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Projects",
+          "Identity",
+          "Projects"
+        ],
+        "summary": "Delete Project",
+        "operationId": "delete_project_projects__pid__delete",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pid"
+            }
+          },
+          {
+            "name": "x-csrf-protection",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Protection"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not yours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Declared, not yet implemented.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/projects/{pid}/workspace": {
@@ -474,7 +650,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "Project Workspace",
@@ -574,7 +749,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "Create Application",
@@ -676,7 +850,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "Create Environment",
@@ -899,7 +1072,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "Create Scan",
@@ -1001,7 +1173,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "List Members",
@@ -1115,12 +1286,105 @@
         }
       }
     },
+    "/projects/{pid}/members/{uid}": {
+      "delete": {
+        "tags": [
+          "Projects",
+          "Identity",
+          "Projects"
+        ],
+        "summary": "Remove Member",
+        "operationId": "remove_member_projects__pid__members__uid__delete",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pid"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Uid"
+            }
+          },
+          {
+            "name": "x-csrf-protection",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Protection"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not yours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Declared, not yet implemented.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/invitations": {
       "get": {
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "My Invitations",
@@ -1229,7 +1493,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "List Invitations",
@@ -1346,7 +1609,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "Create Invitation",
@@ -1448,7 +1710,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Projects"
         ],
         "summary": "Accept Invitation",
@@ -1535,315 +1796,11 @@
         }
       }
     },
-    "/organizations": {
-      "get": {
-        "tags": [
-          "Projects",
-          "Identity",
-          "Organizations",
-          "Organizations"
-        ],
-        "summary": "Organizations",
-        "operationId": "organizations_organizations_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          },
-          {
-            "name": "x-csrf-protection",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Protection"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_OrganizationOut_"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not yours.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "Declared, not yet implemented.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/onboarding": {
-      "post": {
-        "tags": [
-          "Projects",
-          "Identity",
-          "Organizations",
-          "Organizations"
-        ],
-        "summary": "Onboarding",
-        "operationId": "onboarding_onboarding_post",
-        "parameters": [
-          {
-            "name": "x-csrf-protection",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Protection"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Onboarding"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OnboardingResult"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not yours.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "Declared, not yet implemented.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/organizations/{oid}/projects": {
-      "post": {
-        "tags": [
-          "Projects",
-          "Identity",
-          "Organizations",
-          "Organizations"
-        ],
-        "summary": "Create Organization Project",
-        "operationId": "create_organization_project_organizations__oid__projects_post",
-        "parameters": [
-          {
-            "name": "oid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Oid"
-            }
-          },
-          {
-            "name": "x-csrf-protection",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Protection"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OrganizationProjectCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Project"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not yours.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "Declared, not yet implemented.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/notifications": {
       "get": {
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Identity"
         ],
         "summary": "Notifications",
@@ -1962,7 +1919,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Identity"
         ],
         "summary": "Unread Count",
@@ -2044,7 +2000,6 @@
         "tags": [
           "Projects",
           "Identity",
-          "Organizations",
           "Identity"
         ],
         "summary": "Mark Read",
@@ -6701,117 +6656,6 @@
         ],
         "title": "NotificationUpdate"
       },
-      "Onboarding": {
-        "properties": {
-          "organization_name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Organization Name"
-          },
-          "project_name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Project Name"
-          },
-          "request_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Request Id"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "organization_name",
-          "project_name",
-          "request_id"
-        ],
-        "title": "Onboarding"
-      },
-      "OnboardingResult": {
-        "properties": {
-          "organization": {
-            "$ref": "#/components/schemas/OrganizationOut"
-          },
-          "project": {
-            "$ref": "#/components/schemas/Project"
-          }
-        },
-        "type": "object",
-        "required": [
-          "organization",
-          "project"
-        ],
-        "title": "OnboardingResult"
-      },
-      "OrganizationOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "owner_id": {
-            "type": "string",
-            "title": "Owner Id"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "owner",
-              "admin",
-              "member"
-            ],
-            "title": "Role"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "owner_id",
-          "created_at",
-          "role"
-        ],
-        "title": "OrganizationOut"
-      },
-      "OrganizationProjectCreate": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 2000,
-            "title": "Description",
-            "default": ""
-          },
-          "request_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Request Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "request_id"
-        ],
-        "title": "OrganizationProjectCreate"
-      },
       "Page_Environment_": {
         "properties": {
           "items": {
@@ -6919,33 +6763,6 @@
           "items"
         ],
         "title": "Page[Notification]"
-      },
-      "Page_OrganizationOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/OrganizationOut"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "Page[OrganizationOut]"
       },
       "Page_Project_": {
         "properties": {
@@ -7108,17 +6925,6 @@
             "title": "Role",
             "description": "The caller's role in this project."
           },
-          "organization_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Organization Id"
-          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -7155,6 +6961,38 @@
           "name"
         ],
         "title": "ProjectCreate"
+      },
+      "ProjectUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "ProjectUpdate",
+        "description": "A project carries only a name and description. The application's URL\nlives on an environment, not here."
       },
       "Requirement": {
         "properties": {

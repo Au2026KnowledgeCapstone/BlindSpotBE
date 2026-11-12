@@ -85,37 +85,9 @@ class DatabaseSecurityTest(unittest.TestCase):
             self.as_user(uid,query,params)
         self.assertIn(result.exception.sqlstate,states)
 
-    def test_10_onboarding_atomic_retry_and_role_boundaries(self):
-        request=str(uuid4())
-        first=self.as_user(A,"SELECT public.complete_customer_onboarding('Acme','First',%s)",(request,))[0][0]
-        retry=self.as_user(A,"SELECT public.complete_customer_onboarding('Ignored','Ignored',%s)",(request,))[0][0]
-        self.assertEqual(first,retry)
-        org=first["organization"]["id"]; project=first["project"]["id"]
-        self.assertEqual(self.as_user(A,"SELECT role FROM public.organization_members WHERE organization_id=%s",(org,)),[("owner",)])
-        self.assertEqual(self.as_user(A,"SELECT role FROM public.project_members WHERE project_id=%s",(project,)),[("owner",)])
-        second=self.as_user(A,"SELECT id FROM public.create_project_in_organization(%s,'Second','',%s)",(org,str(uuid4())))[0][0]
-        self.assertEqual(str(self.as_user(A,"SELECT organization_id FROM public.projects WHERE id=%s",(second,))[0][0]),org)
-        self.denied(B,"SELECT * FROM public.create_project_in_organization(%s,'Outsider','',%s)",(org,str(uuid4())))
-        # A project invite grants only the invited project, not sibling projects.
-        sibling=self.as_user(A,"SELECT id FROM public.create_project_in_organization(%s,'Sibling','',%s)",(org,str(uuid4())))[0][0]
-        invite=self.as_user(A,"SELECT id FROM public.invite_member(%s,'invitee@example.invalid')",(project,))[0][0]
-        self.as_user(C,"SELECT * FROM public.accept_invitation(%s)",(invite,))
-        self.assertEqual(str(self.as_user(C,"SELECT id FROM public.projects WHERE id=%s",(project,))[0][0]),str(project))
-        self.assertEqual(self.as_user(C,"SELECT id FROM public.projects WHERE id=%s",(sibling,)),[])
-        self.denied(C,"SELECT * FROM public.accept_invitation(%s)",(invite,))
-        with self.assertRaises(psycopg.Error):
-            self.as_user(None,"SELECT * FROM public.complete_customer_onboarding('Anon','Nope',%s)",(str(uuid4()),),role="anon")
-        self.denied(D,"SELECT * FROM public.complete_customer_onboarding('Unverified','Nope',%s)",(str(uuid4()),))
-        bad_request=str(uuid4())
-        self.denied(A,"SELECT * FROM public.complete_customer_onboarding('Rollback',' ',%s)",(bad_request,),("23514",))
-        self.assertEqual(self.con.execute("SELECT count(*) FROM public.organizations WHERE creation_request_id=%s",(bad_request,)).fetchone()[0],0)
-        self.assertEqual(self.con.execute("SELECT count(*) FROM public.organizations WHERE creation_request_id=%s",(request,)).fetchone()[0],1)
-        legacy=self.as_user(A,"SELECT id FROM public.create_project('Legacy NULL org')")[0][0]
-        self.assertEqual(self.as_user(A,"SELECT organization_id FROM public.projects WHERE id=%s",(legacy,)),[(None,)])
-
     def test_01_all_tables_have_rls(self):
         rows=self.con.execute("SELECT tablename,rowsecurity FROM pg_tables WHERE schemaname='public'").fetchall()
-        self.assertEqual(len(rows),12)
+        self.assertEqual(len(rows),10)
         self.assertTrue(all(enabled for _,enabled in rows),rows)
         self.assertEqual(self.as_user(A,"SELECT current_user,rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user")[0],("authenticated",False,False))
 
