@@ -211,18 +211,12 @@ async def password_update(
 # Identity and project routes are implemented in app/services/workspace_routes.py.
 
 
-
-# This route is a bit confuzzled right now, someone has to decide the shape of this
-@app.get("/dashboard", tags=["Identity"], summary="Legacy dashboard placeholder")
-def dashboard(user: CurrentUser):
-    raise todo("B4", "Dashboard summary")
-
-
 # ---------------------------------------------------------------------------
 # Requirements
 # ---------------------------------------------------------------------------
 
 
+# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/requirements",
     tags=["Requirements"],
@@ -241,6 +235,7 @@ def list_requirements(
     raise todo("B4", "Requirements")
 
 
+# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/requirements",
     tags=["Requirements"],
@@ -252,6 +247,7 @@ def create_requirement(context: ProjectAccess, body: RequirementCreate) -> Requi
     raise todo("B4", "Requirements")
 
 
+# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
@@ -262,6 +258,7 @@ def get_requirement(context: ProjectAccess, rid: str) -> Requirement:
     raise todo("B4", "Requirements")
 
 
+# SRINIVAS, WORK ON THESE
 @app.patch(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
@@ -276,6 +273,7 @@ def update_requirement(context: ProjectAccess, rid: str, body: RequirementUpdate
     raise todo("B4", "Requirements")
 
 
+# SRINIVAS, WORK ON THESE
 @app.delete(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
@@ -286,6 +284,7 @@ def delete_requirement(context: ProjectAccess, rid: str) -> None:
     raise todo("B4", "Requirements")
 
 
+# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/requirements/{rid}/approval",
     tags=["Requirements"],
@@ -305,6 +304,7 @@ def approve_requirement(context: ProjectAccess, rid: str, body: ApprovalRequest)
 # ---------------------------------------------------------------------------
 
 
+# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/imports",
     tags=["Imports"],
@@ -326,6 +326,7 @@ async def create_import(
     raise todo("B7", "Document import")
 
 
+# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/imports/{iid}",
     tags=["Imports"],
@@ -336,6 +337,7 @@ def get_import(context: ProjectAccess, iid: str) -> ImportResult:
     raise todo("B7", "Document import")
 
 
+# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/imports/{iid}/documents/{did}",
     tags=["Imports"],
@@ -348,10 +350,11 @@ def download_document(context: ProjectAccess, iid: str, did: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Environments
+# Environments, @SRINIVAS WE MAY HAVE TO RENAME ENVIRONMENTS TO BROWSE CONFIG
 # ---------------------------------------------------------------------------
 
 
+# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/environments",
     tags=["Environments"],
@@ -362,6 +365,7 @@ def list_environments(context: ProjectAccess, page: Paged) -> Page[Environment]:
     raise todo("B5", "Environments")
 
 
+# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/environments/{eid}",
     tags=["Environments"],
@@ -372,6 +376,7 @@ def get_environment(context: ProjectAccess, eid: str) -> Environment:
     raise todo("B5", "Environments")
 
 
+# SRINIVAS, WORK ON THESE
 @app.patch(
     "/projects/{pid}/environments/{eid}",
     tags=["Environments"],
@@ -383,6 +388,7 @@ def update_environment(context: ProjectManage, eid: str, body: EnvironmentUpdate
     raise todo("B5", "Environments")
 
 
+# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/environments/{eid}/verify",
     tags=["Environments"],
@@ -399,6 +405,7 @@ def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
 # ---------------------------------------------------------------------------
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
@@ -414,6 +421,7 @@ def list_runs(
     raise todo("B6", "Runs")
 
 
+# Nishitha, WORK ON THIS
 @app.post(
     "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
@@ -430,6 +438,7 @@ def create_run(context: ProjectAccess, eid: str, body: RunCreate) -> Run:
     raise todo("B6", "Queueing a run")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}",
     tags=["Analysis"],
@@ -440,6 +449,7 @@ def get_run(context: ProjectAccess, eid: str, runid: str) -> Run:
     raise todo("B6", "Runs")
 
 
+# Nishitha, WORK ON THIS
 @app.post(
     "/projects/{pid}/environments/{eid}/runs/{runid}/cancel",
     tags=["Analysis"],
@@ -451,6 +461,7 @@ def cancel_run(context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
     raise todo("B6", "Cancelling a run")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/results",
     tags=["Analysis"],
@@ -461,6 +472,7 @@ def list_results(context: ProjectAccess, eid: str, runid: str, page: Paged) -> P
     raise todo("B6", "Results")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}",
     tags=["Analysis"],
@@ -471,6 +483,7 @@ def get_result(context: ProjectAccess, eid: str, runid: str, resid: str) -> Resu
     raise todo("B6", "Results")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/events",
     tags=["Analysis"],
@@ -484,6 +497,7 @@ def stream_run_events(context: ProjectAccess, eid: str, runid: str) -> None:
     raise todo("B6", "The live event stream")
 
 
+# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage",
     tags=["Analysis"],
@@ -500,6 +514,7 @@ def run_usage(context: ProjectAccess, eid: str, runid: str) -> RunUsage:
 # ---------------------------------------------------------------------------
 
 
+# SRINIVAS, WORK ON THESE
 @app.get(
     "/evidence/{eid}",
     tags=["Evidence"],
@@ -521,6 +536,7 @@ def get_evidence(user: CurrentUser, eid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/execution-events",
     tags=["Internal"],
@@ -533,6 +549,7 @@ def receive_execution_event(runid: str, body: ExecutionEvent) -> Acknowledged:
     raise todo("B6", "Execution event ingestion")
 
 
+# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/ai-usage",
     tags=["Internal"],
@@ -545,6 +562,7 @@ def receive_ai_usage(runid: str, body: AIUsageReport) -> Acknowledged:
     raise todo("B6", "Usage ingestion")
 
 
+# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/ai-cost-finalizations",
     tags=["Internal"],

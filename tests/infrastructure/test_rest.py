@@ -65,24 +65,6 @@ class RestSecurityTest(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code,json.loads(e.read())
 
-    def test_customer_onboarding_retry_and_project_isolation_over_http(self):
-        request_id=str(__import__("uuid").uuid4())
-        status,result=self.request("/rpc/complete_customer_onboarding","POST",{"p_organization_name":"HTTP Demo","p_project_name":"First Project","p_request_id":request_id},self.token(database.A))
-        self.assertEqual(status,200,result)
-        org=result["organization"]["id"]; project=result["project"]["id"]
-        status,retry=self.request("/rpc/complete_customer_onboarding","POST",{"p_organization_name":"Ignored","p_project_name":"Ignored","p_request_id":request_id},self.token(database.A))
-        self.assertEqual((status,retry["project"]["id"]),(200,project))
-        status,sibling=self.request("/rpc/create_project_in_organization","POST",{"p_organization_id":org,"p_name":"Second Project","p_description":"","p_request_id":str(__import__("uuid").uuid4())},self.token(database.A))
-        self.assertEqual(status,200,sibling)
-        status,_=self.request("/rpc/create_project_in_organization","POST",{"p_organization_id":org,"p_name":"No","p_description":"","p_request_id":str(__import__("uuid").uuid4())},self.token(database.B))
-        self.assertEqual(status,403)
-        status,invite=self.request("/rpc/invite_member","POST",{"p_project_id":project,"p_email":"invitee@example.invalid"},self.token(database.A))
-        self.assertEqual(status,200)
-        status,_=self.request("/rpc/accept_invitation","POST",{"p_invitation_id":invite["id"]},self.token(database.C))
-        self.assertEqual(status,200)
-        status,access=self.request("/projects?id=eq."+sibling["id"],token=self.token(database.C))
-        self.assertEqual((status,access),(200,[]))
-
     def test_valid_identity_can_create_and_read_persisted_project(self):
         status,result=self.request("/rpc/create_project","POST",{"p_name":"Persisted over HTTP"},self.token(database.A))
         self.assertEqual(status,200,result)

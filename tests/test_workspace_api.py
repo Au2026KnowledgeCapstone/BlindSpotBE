@@ -12,7 +12,6 @@ from app.core.auth_config import AuthSettings
 ORIGIN = "http://localhost:3000"
 UID = "11111111-1111-4111-8111-111111111111"
 PROJECT = "22222222-2222-4222-8222-222222222222"
-ORG = "33333333-3333-4333-8333-333333333333"
 INVITATION = "44444444-4444-4444-8444-444444444444"
 USER = {"id": UID, "email": "person@example.com"}
 NOW = datetime.now(timezone.utc).isoformat()
@@ -33,7 +32,7 @@ def setup_client(handler):
 
 
 def project_row():
-    return {"id": PROJECT, "name": "Example", "description": "", "owner_id": UID, "organization_id": ORG, "created_at": NOW}
+    return {"id": PROJECT, "name": "Example", "description": "", "owner_id": UID, "created_at": NOW}
 
 
 def test_project_collection_uses_cookie_and_canonical_page_contract():
@@ -50,8 +49,6 @@ def test_project_collection_uses_cookie_and_canonical_page_contract():
             return httpx.Response(200, json=[project_row() | {"owner_id": "99999999-9999-4999-8999-999999999999"}])
         if request.url.path.endswith("/project_members"):
             return httpx.Response(200, json=[{"project_id": PROJECT, "role": "member"}])
-        if request.url.path.endswith("/organization_members"):
-            return httpx.Response(200, json=[])
         raise AssertionError(request.url.path)
 
     response = setup_client(handler).get("/projects", headers={"Origin": ORIGIN})
@@ -60,58 +57,10 @@ def test_project_collection_uses_cookie_and_canonical_page_contract():
     assert page["next_cursor"] is None
     assert len(page["items"]) == 1
     assert page["items"][0]["role"] == "member"
-    assert page["items"][0]["organization_id"] == ORG
     assert response.headers["cache-control"] == "no-store"
     assert "verified-cookie-token" not in response.text
     assert "service_role" not in response.text
     assert len([r for r in seen if r.url.path == "/auth/v1/user"]) == 1
-
-
-def test_project_collection_handles_legacy_project_without_organization():
-    def handler(request):
-        if request.url.path == "/auth/v1/user":
-            return httpx.Response(200, json=USER)
-        if request.url.path.endswith("/projects"):
-            return httpx.Response(200, json=[project_row() | {"organization_id": None}])
-        if request.url.path.endswith("/project_members"):
-            return httpx.Response(200, json=[])
-        if request.url.path.endswith("/organization_members"):
-            raise AssertionError("legacy project page must not query organization_members")
-        raise AssertionError(request.url.path)
-
-    response = setup_client(handler).get("/projects", headers={"Origin": ORIGIN})
-    assert response.status_code == 200, response.text
-    assert response.json()["items"][0]["organization_id"] is None
-    assert response.json()["items"][0]["role"] == "owner"
-
-
-def test_onboarding_requires_csrf_and_rejects_forged_identity_fields():
-    requests = []
-
-    def handler(request):
-        requests.append(request)
-        if request.url.path == "/auth/v1/user":
-            return httpx.Response(200, json=USER)
-        if request.url.path.endswith("/project_members"):
-            return httpx.Response(200, json=[{"user_id": UID, "role": "member"}])
-        return httpx.Response(200, json={"organization": {"id": ORG, "name": "Acme", "owner_id": UID, "created_at": NOW}, "project": project_row()})
-
-    client = setup_client(handler)
-    body = {"organization_name": "Acme", "project_name": "Web", "request_id": "55555555-5555-4555-8555-555555555555"}
-    denied = client.post("/onboarding", json=body, headers={"Origin": ORIGIN})
-    assert denied.status_code == 403
-    assert not any(r.url.path.startswith("/rest/v1/") for r in requests)
-    forged = client.post("/onboarding", json={**body, "user_id": UID}, headers={"Origin": ORIGIN, "X-CSRF-Protection": "1"})
-    assert forged.status_code == 422
-    assert not any(r.url.path.startswith("/rest/v1/") for r in requests)
-    created = client.post("/onboarding", json=body, headers={"Origin": ORIGIN, "X-CSRF-Protection": "1"})
-    assert created.status_code == 201, created.text
-    assert created.json()["organization"]["role"] == "owner"
-    assert created.json()["project"]["role"] == "owner"
-    rpc = next(r for r in requests if r.url.path == "/rest/v1/rpc/complete_customer_onboarding")
-    assert rpc.method == "POST"
-    assert b"p_request_id" in rpc.read()
-    assert "user_id" not in rpc.read().decode()
 
 
 def test_pending_invitation_inbox_scopes_to_verified_email():
@@ -147,8 +96,6 @@ def test_members_use_supported_bounded_profile_lookup_not_embedding():
         if request.url.path.endswith("/profiles"):
             assert request.url.params["user_id"] == f"in.({UID})"
             return httpx.Response(200, json=[{"user_id": UID, "display_name": "Pat"}])
-        if request.url.path.endswith("/organization_members"):
-            return httpx.Response(200, json=[])
         raise AssertionError(request.url.path)
 
     response = setup_client(handler).get(f"/projects/{PROJECT}/members", headers={"Origin": ORIGIN})
@@ -188,7 +135,7 @@ def test_upstream_outage_is_sanitized_503():
             return httpx.Response(200, json=USER)
         raise httpx.ConnectError("synthetic detail", request=request)
 
-    response = setup_client(handler).get("/organizations", headers={"Origin": ORIGIN})
+    response = setup_client(handler).get("/projects", headers={"Origin": ORIGIN})
     assert response.status_code == 503
     assert "synthetic detail" not in response.text
 
@@ -282,8 +229,6 @@ def test_workspace_hides_projects_outsider():
             return httpx.Response(200, json=[project_row() | {"owner_id": "99999999-9999-4999-8999-999999999999"}])
         if request.url.path.endswith("/project_members"):
             return httpx.Response(200, json=[])
-        if request.url.path.endswith("/organization_members"):
-            return httpx.Response(200, json=[])
         raise AssertionError(request.url.path)
 
     response = setup_client(handler).get(f"/projects/{PROJECT}/workspace", headers={"Origin": ORIGIN})
@@ -310,21 +255,3 @@ def test_project_routes_are_canonical_not_workspace_aliases():
     assert "/projects/{pid}/workspace" in paths
 
 
-def test_legacy_project_without_organization_does_not_query_null_org():
-    calls = []
-    row = project_row() | {"organization_id": None}
-
-    def handler(request):
-        calls.append(request.url.path)
-        if request.url.path == "/auth/v1/user":
-            return httpx.Response(200, json=USER)
-        if request.url.path.endswith("/projects"):
-            return httpx.Response(200, json=[row])
-        if request.url.path.endswith("/project_members"):
-            return httpx.Response(200, json=[{"role": "owner"}])
-        raise AssertionError(request.url.path)
-
-    response = setup_client(handler).get(f"/projects/{PROJECT}", headers={"Origin": ORIGIN})
-    assert response.status_code == 200, response.text
-    assert response.json()["role"] == "owner"
-    assert not any(path.endswith("/organization_members") for path in calls)

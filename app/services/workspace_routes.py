@@ -1,4 +1,4 @@
-"""Cookie-authenticated identity, organization, and project operations."""
+"""Cookie-authenticated identity and project operations."""
 import asyncio
 from datetime import datetime, timezone
 from typing import Literal
@@ -32,17 +32,11 @@ from app.services.workspace_api import AuthError, rest
 
 MAX_ENV_CREDENTIAL_BYTES = 16_384
 
-router = APIRouter(tags=["Projects", "Identity", "Organizations"])
+router = APIRouter(tags=["Projects", "Identity"])
 
 
 class Body(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class Onboarding(Body):
-    organization_name: str = Field(min_length=1, max_length=120)
-    project_name: str = Field(min_length=1, max_length=120)
-    request_id: UUID
 
 
 class ApplicationCreate(Body):
@@ -84,23 +78,6 @@ class TestResultOut(BaseModel):
     created_at: datetime
 
 
-class OrganizationProjectCreate(ProjectCreateSchema):
-    request_id: UUID
-
-
-class OrganizationOut(BaseModel):
-    id: str
-    name: str
-    owner_id: str
-    created_at: datetime
-    role: Literal["owner", "admin", "member"]
-
-
-class OnboardingResult(BaseModel):
-    organization: OrganizationOut
-    project: ProjectOut
-
-
 def token(request: Request) -> str:
     return request.cookies.get(request.app.state.auth_settings.access_cookie, "")
 
@@ -138,7 +115,6 @@ def _project_row(row: dict, user: AuthenticatedUser) -> dict:
     else:
         row["role"] = row.get("membership_role", "member")
     row.pop("membership_role", None)
-    row.setdefault("organization_id", None)
     return row
 
 
@@ -153,7 +129,7 @@ def _environment_out(row: dict) -> dict:
 
 
 def _project_select() -> str:
-    return "id,name,description,owner_id,organization_id,created_at"
+    return "id,name,description,owner_id,created_at"
 
 
 @router.get("/me", response_model=Me, tags=["Identity"])
@@ -179,24 +155,11 @@ async def list_projects(request: Request, response: Response, limit: int = 50, c
         params["id"] = f"gt.{cursor}"
     rows = _rows(await rest(request, token(request), "GET", "projects", params=params))
     project_ids = [str(row["id"]) for row in rows]
-    org_ids = sorted({row["organization_id"] for row in rows if row.get("organization_id")})
     if project_ids:
-        project_members_query = rest(request, token(request), "GET", "project_members", params={"select": "project_id,role", "user_id": f"eq.{user.user_id}", "project_id": f"in.({','.join(project_ids)})", "limit": str(len(project_ids))})
-        if org_ids:
-            memberships, org_memberships = await asyncio.gather(
-                project_members_query,
-                rest(request, token(request), "GET", "organization_members", params={"select": "organization_id,role", "user_id": f"eq.{user.user_id}", "organization_id": f"in.({','.join(org_ids)})", "limit": str(len(org_ids))}),
-            )
-        else:
-            memberships = await project_members_query
-            org_memberships = None
-        roles = {r["project_id"]: r["role"] for r in _rows(memberships)}
-        org_roles = {r["organization_id"]: r["role"] for r in _rows(org_memberships)} if org_memberships is not None else {}
+        memberships = _rows(await rest(request, token(request), "GET", "project_members", params={"select": "project_id,role", "user_id": f"eq.{user.user_id}", "project_id": f"in.({','.join(project_ids)})", "limit": str(len(project_ids))}))
+        roles = {r["project_id"]: r["role"] for r in memberships}
         for row in rows:
             row["membership_role"] = roles.get(row["id"])
-            org_role = org_roles.get(row.get("organization_id"))
-            if org_role in {"owner", "admin"}:
-                row["membership_role"] = "admin"
             _project_row(row, user)
     return _page(rows, limit)
 
@@ -209,17 +172,7 @@ async def get_project(pid: UUID, request: Request, response: Response, user: Aut
         raise AuthError(404, "Project not found")
     row = rows[0]
     memberships = _rows(await rest(request, token(request), "GET", "project_members", params={"select": "role", "project_id": f"eq.{pid}", "user_id": f"eq.{user.user_id}", "limit": "1"}))
-    org_membership = []
-    if row.get("organization_id"):
-        org_membership = _rows(await rest(request, token(request), "GET", "organization_members", params={"select": "role", "organization_id": f"eq.{row['organization_id']}", "user_id": f"eq.{user.user_id}", "limit": "1"}))
-    project_role = memberships[0]["role"] if memberships else None
-    org_role = org_membership[0]["role"] if org_membership else None
-    if row["owner_id"] == user.user_id:
-        row["membership_role"] = "owner"
-    elif org_role in {"owner", "admin"}:
-        row["membership_role"] = "admin"
-    else:
-        row["membership_role"] = project_role
+    row["membership_role"] = "owner" if row["owner_id"] == user.user_id else (memberships[0]["role"] if memberships else None)
     result = _project_row(row, user)
     if result["role"] is None:
         raise AuthError(404, "Project not found")
@@ -231,7 +184,6 @@ async def create_project(body: ProjectCreateSchema, request: Request, response: 
     response.headers["Cache-Control"] = "no-store"
     result = _one(await rest(request, token(request), "RPC", "rpc/create_project", body={"p_name": body.name, "p_description": body.description}))
     result["role"] = "owner"
-    result.setdefault("organization_id", None)
     return result
 
 
@@ -413,40 +365,6 @@ async def accept_invitation(iid: UUID, request: Request, response: Response, use
     response.headers["Cache-Control"] = "no-store"
     row = _one(await rest(request, token(request), "RPC", "rpc/accept_invitation", body={"p_invitation_id": str(iid)}))
     return {"user_id": row["user_id"], "role": row["role"], "display_name": ""}
-
-
-@router.get("/organizations", response_model=Page[OrganizationOut], tags=["Organizations"])
-async def organizations(request: Request, response: Response, limit: int = 50, cursor: UUID | None = None, user: AuthenticatedUser = Depends(current_user)):
-    limit = _size(limit)
-    response.headers["Cache-Control"] = "no-store"
-    params = {"select": "id,name,owner_id,created_at", "order": "id.asc", "limit": str(limit + 1)}
-    if cursor:
-        params["id"] = f"gt.{cursor}"
-    rows = _rows(await rest(request, token(request), "GET", "organizations", params=params))
-    ids = [str(row["id"]) for row in rows]
-    if ids:
-        members = _rows(await rest(request, token(request), "GET", "organization_members", params={"select": "organization_id,role", "user_id": f"eq.{user.user_id}", "organization_id": f"in.({','.join(ids)})", "limit": str(len(ids))}))
-        roles = {row["organization_id"]: row["role"] for row in members}
-        for row in rows:
-            row["role"] = roles.get(row["id"], "owner" if row["owner_id"] == user.user_id else "member")
-    return _page(rows, limit)
-
-
-@router.post("/onboarding", status_code=201, response_model=OnboardingResult, tags=["Organizations"])
-async def onboarding(body: Onboarding, request: Request, response: Response, user: AuthenticatedUser = Depends(current_user)):
-    response.headers["Cache-Control"] = "no-store"
-    result = _one(await rest(request, token(request), "RPC", "rpc/complete_customer_onboarding", body={"p_organization_name": body.organization_name, "p_project_name": body.project_name, "p_request_id": str(body.request_id)}))
-    result["organization"]["role"] = "owner"
-    result["project"] = _project_row(result["project"], user)
-    return result
-
-
-@router.post("/organizations/{oid}/projects", status_code=201, response_model=ProjectOut, tags=["Organizations"])
-async def create_organization_project(oid: UUID, body: OrganizationProjectCreate, request: Request, response: Response, user: AuthenticatedUser = Depends(current_user)):
-    response.headers["Cache-Control"] = "no-store"
-    result = _one(await rest(request, token(request), "RPC", "rpc/create_project_in_organization", body={"p_organization_id": str(oid), "p_name": body.name, "p_description": body.description, "p_request_id": str(body.request_id)}))
-    result["role"] = "owner" if result["owner_id"] == user.user_id else "admin"
-    return result
 
 
 @router.get("/notifications", response_model=Page[Notification], tags=["Identity"])
