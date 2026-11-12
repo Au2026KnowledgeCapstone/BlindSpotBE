@@ -11,6 +11,7 @@ run:
 	$(VENV)/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 test:
+	$(VENV)/bin/python -m pip install -q -e '.[test]'
 	$(VENV)/bin/python -m pytest -q
 
 # Regenerate the committed API contract. The frontend generates its client
