@@ -310,3 +310,14 @@ def test_environment_revision_invalidates_verification_without_exposing_secrets(
     assert result["revision"] == 2 and result["verified_at"] is None and result["has_credentials"]
     assert "private-password" not in json.dumps(result, default=str)
     assert "private-password" not in environment.encrypted_credentials
+
+
+def test_higher_execution_attempt_requires_a_new_product_run(setup):
+    s = setup
+    run, _, envelope, _ = queue(s)
+    body = event(envelope, 1, "job.running", {"status": "running"})
+    body["attempt"] = 2
+    assert send(s, run, envelope, "execution-events", body).status_code == 409
+    metering = usage(envelope)
+    metering["attempt"] = 2
+    assert send(s, run, envelope, "ai-usage", metering).status_code == 409

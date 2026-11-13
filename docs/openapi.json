@@ -5501,7 +5501,7 @@
           },
           "attempt": {
             "type": "integer",
-            "const": 1,
+            "minimum": 1.0,
             "title": "Attempt",
             "default": 1
           },
@@ -6240,7 +6240,7 @@
           },
           "attempt": {
             "type": "integer",
-            "const": 1,
+            "minimum": 1.0,
             "title": "Attempt",
             "default": 1
           },

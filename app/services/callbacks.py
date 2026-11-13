@@ -68,6 +68,8 @@ def remember(db, run, kind, body, sequence=None):
 
 def execution(db, runid, authorization, body):
     run, dispatch = authenticate(db, runid, authorization)
+    if body.attempt != 1:
+        conflict("This run has one execution attempt; create a new run/job for an intentional rerun.")
     if body.job_id != dispatch.job_id:
         conflict("Job does not belong to this run.")
     if duplicate(db, run, "execution", body):
@@ -135,6 +137,8 @@ def save_result(db, run, payload):
 
 def usage(db, runid, authorization, body):
     run, dispatch = authenticate(db, runid, authorization)
+    if body.attempt != 1:
+        conflict("This run has one execution attempt; create a new run/job for an intentional rerun.")
     if body.job_id != dispatch.job_id:
         conflict("Job does not belong to this run.")
     if duplicate(db, run, "usage", body):

@@ -182,3 +182,13 @@ reflection do not generate false changes.
 Sources reviewed: BE baseline `9ec4c56`, local aiservice `5222a8f`, local v2
 `47ca7ee`. The executor and v2 repositories were read and used for the round-trip
 verification; neither repository was modified.
+
+
+The subsequent [A1 compliance audit](https://github.com/Au2026KnowledgeCapstone/aiservice/blob/fix/a1-handoff-compliance/docs/a1-compliance-audit.md)
+verified every supplied A1 stage and corrected the executor health/status,
+SKIP LOCKED, JSONB, failure logging, callback URL and attempt-sequence gaps.
+Callback schemas use a positive integer attempt; this BE run model deliberately
+accepts execution attempt 1 only, returning 409 for higher attempts rather than
+merging their sequence/result/cost history. Product reruns allocate new jobs.
+Per-attempt allocation in aiservice is tested independently; automatic same-job
+execution retries and multi-attempt cost sessions are not A1 endpoints.

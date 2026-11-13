@@ -14,7 +14,7 @@ class Wire(BaseModel):
 class ExecutionEvent(Wire):
     event_id: Identifier
     job_id: Identifier
-    attempt: Literal[1] = 1
+    attempt: int = Field(default=1, ge=1)
     sequence: int = Field(gt=0)
     type: Literal["job.running", "job.finished", "job.failed", "job.cancelled", "requirement.completed"]
     occurred_at: datetime
@@ -34,7 +34,7 @@ class AIUsageReport(Wire):
     revision: int = Field(ge=1, le=2)
     cost_session_id: Identifier
     job_id: Identifier
-    attempt: Literal[1] = 1
+    attempt: int = Field(default=1, ge=1)
     provider: Identifier
     model: Identifier
     operation: Identifier
