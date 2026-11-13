@@ -21,6 +21,8 @@ class RequirementSnapshot(BaseModel):
 
     id: str
     title: str
+    description: str = ""
+    criteria: list[dict[str, str]] = []
 
 
 class Run(BaseModel):
@@ -91,7 +93,7 @@ class Result(BaseModel):
     criterion_assessments: list[CriterionAssessment]
     actions: list[Action]
     evidence: list[Evidence]
-    duration_ms: int
+    duration_ms: int | None
 
 
 class RunUsage(BaseModel):

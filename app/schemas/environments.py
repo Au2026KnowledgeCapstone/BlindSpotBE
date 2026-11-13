@@ -2,7 +2,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.urls import target_url
 
 Kind = Literal["development", "staging", "production"]
 
@@ -29,6 +31,8 @@ class EnvironmentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     kind: Kind = "staging"
     base_url: str = BaseUrl
+    _valid_target = field_validator("base_url")(target_url)
+
     credentials: dict[str, str] | None = Field(
         default=None, description="Write-only. Stored encrypted and never returned."
     )
@@ -42,3 +46,8 @@ class EnvironmentUpdate(BaseModel):
     kind: Kind | None = None
     base_url: str | None = Field(default=None, pattern=r"^https?://\S+$", max_length=2048)
     credentials: dict[str, str] | None = None
+
+    @field_validator("base_url")
+    @classmethod
+    def valid_target(cls, value):
+        return target_url(value) if value is not None else None

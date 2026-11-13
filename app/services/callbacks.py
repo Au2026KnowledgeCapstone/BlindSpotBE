@@ -124,7 +124,7 @@ def save_result(db, run, payload):
         conflict("Requirement was removed while execution was pending.")
     result = Result(id=uuid4(), project_id=run.project_id, analysis_run_id=run.id,
                     requirement_id=uid(snapshot["id"]), verdict=outcome.verdict, classification=outcome.classification,
-                    observed_behavior=outcome.observed_behavior, duration_ms=0)
+                    observed_behavior=outcome.observed_behavior, duration_ms=None)
     db.add(result)
     db.flush()
     db.add(ResultDetail(result_id=result.id, outcome=outcome.model_dump()))

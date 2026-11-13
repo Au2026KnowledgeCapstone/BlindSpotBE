@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.models.integration import Dispatch
+from app.models import AnalysisRun, Notification
 from app.services.analysis import now, cipher
 
 
@@ -22,7 +23,7 @@ def dispatch_once(sessions=SessionLocal, transport=None):
         row.attempts += 1
         row.lease_token = token = str(uuid4())
         row.lease_until = now() + timedelta(seconds=settings.dispatch_lease_seconds)
-        identifier, encrypted = row.id, row.encrypted_envelope
+        identifier, encrypted, run_id = row.id, row.encrypted_envelope, row.run_id
     status, error = "pending", None
     try:
         envelope = json.loads(cipher().decrypt(encrypted.encode()))
@@ -42,11 +43,16 @@ def dispatch_once(sessions=SessionLocal, transport=None):
     except Exception as exc:
         error = type(exc).__name__  # Never persist response bodies, tokens or envelopes.
     with sessions.begin() as db:
+        run = db.scalar(select(AnalysisRun).where(AnalysisRun.id == run_id).with_for_update())
         row = db.scalar(select(Dispatch).where(Dispatch.id == identifier).with_for_update())
         if row.lease_token == token:
             row.status, row.last_error = status, error
             row.lease_until = row.lease_token = None
             row.next_attempt_at = now() + timedelta(seconds=min(300, 2 ** min(row.attempts, 9)))
+            if status == "failed" and run.status == "queued":
+                run.status, run.completed_at, run.error = "failed", now(), "AI service rejected job dispatch."
+                db.add(Notification(id=uuid4(), user_id=run.requested_by, project_id=run.project_id,
+                    message=f"Run #{run.run_number} failed during dispatch.", created_at=now()))
     return True
 
 

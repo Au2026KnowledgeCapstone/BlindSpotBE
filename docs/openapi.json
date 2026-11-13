@@ -2875,83 +2875,6 @@
         }
       }
     },
-    "/dashboard": {
-      "get": {
-        "tags": [
-          "Identity"
-        ],
-        "summary": "Legacy dashboard placeholder",
-        "operationId": "dashboard_dashboard_get",
-        "parameters": [
-          {
-            "name": "x-csrf-protection",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Protection"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not yours.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "Declared, not yet implemented.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/projects/{pid}/requirements": {
       "get": {
         "tags": [
@@ -4412,7 +4335,7 @@
           "Analysis"
         ],
         "summary": "Queue a run",
-        "description": "Only approved requirements may be selected, at most ten per run. The run and its dispatch intent are saved in one transaction before aiservice is contacted, so a failed dispatch is retried from what was saved rather than lost.",
+        "description": "Only approved requirements may be selected, at most ten per run. The run and its dispatch intent are saved in one transaction before aiservice is contacted, so a failed dispatch is retried from what was saved rather than lost. Send Idempotency-Key to safely retry submissions.",
         "operationId": "create_run_projects__pid__environments__eid__runs_post",
         "parameters": [
           {
@@ -5548,69 +5471,69 @@
         "properties": {
           "usage_id": {
             "type": "string",
-            "title": "Usage Id",
-            "description": "Deduplication key. A retry must not add a second charge."
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Usage Id"
           },
           "event_id": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Event Id"
           },
           "revision": {
             "type": "integer",
-            "title": "Revision",
-            "description": "A revision replaces an estimate; it does not add to it.",
-            "default": 1
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Revision"
           },
           "cost_session_id": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Cost Session Id"
           },
           "job_id": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Job Id"
           },
           "attempt": {
             "type": "integer",
-            "title": "Attempt"
+            "const": 1,
+            "title": "Attempt",
+            "default": 1
           },
           "provider": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Provider"
           },
           "model": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Model"
           },
           "operation": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Operation"
           },
-          "input_tokens": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Input Tokens"
-          },
-          "output_tokens": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Output Tokens"
+          "tokens": {
+            "$ref": "#/components/schemas/Tokens"
           },
           "amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -5620,31 +5543,43 @@
           },
           "currency": {
             "type": "string",
+            "const": "USD",
             "title": "Currency",
             "default": "USD"
           },
           "status": {
             "type": "string",
+            "enum": [
+              "reserved",
+              "succeeded",
+              "failed",
+              "unknown"
+            ],
             "title": "Status"
           },
-          "occurred_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Occurred At"
+          "timestamps": {
+            "additionalProperties": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "object",
+            "title": "Timestamps"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "usage_id",
           "event_id",
+          "revision",
           "cost_session_id",
           "job_id",
-          "attempt",
           "provider",
           "model",
           "operation",
+          "tokens",
           "status",
-          "occurred_at"
+          "timestamps"
         ],
         "title": "AIUsageReport"
       },
@@ -5863,20 +5798,31 @@
         "properties": {
           "event_id": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Event Id"
           },
           "cost_session_id": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Cost Session Id"
           },
           "revision": {
             "type": "integer",
+            "const": 1,
             "title": "Revision",
             "default": 1
           },
           "final_usage_count": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Final Usage Count"
+          },
+          "final_usage_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Final Usage Digest"
           },
           "closed_at": {
             "type": "string",
@@ -5884,15 +5830,16 @@
             "title": "Closed At"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "event_id",
           "cost_session_id",
           "final_usage_count",
+          "final_usage_digest",
           "closed_at"
         ],
-        "title": "CostFinalization",
-        "description": "Run completion alone is not sufficient \u2014 usage can arrive afterwards."
+        "title": "CostFinalization"
       },
       "Credentials": {
         "properties": {
@@ -6281,24 +6228,36 @@
         "properties": {
           "event_id": {
             "type": "string",
-            "title": "Event Id",
-            "description": "Deduplication key. A retry must not create a second row."
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Event Id"
           },
           "job_id": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Job Id"
           },
           "attempt": {
             "type": "integer",
-            "title": "Attempt"
+            "const": 1,
+            "title": "Attempt",
+            "default": 1
           },
           "sequence": {
             "type": "integer",
-            "title": "Sequence",
-            "description": "Orders events within an attempt."
+            "exclusiveMinimum": 0.0,
+            "title": "Sequence"
           },
           "type": {
             "type": "string",
+            "enum": [
+              "job.running",
+              "job.finished",
+              "job.failed",
+              "job.cancelled",
+              "requirement.completed"
+            ],
             "title": "Type"
           },
           "occurred_at": {
@@ -6308,6 +6267,7 @@
           },
           "schema_version": {
             "type": "integer",
+            "const": 1,
             "title": "Schema Version",
             "default": 1
           },
@@ -6317,11 +6277,11 @@
             "title": "Payload"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "event_id",
           "job_id",
-          "attempt",
           "sequence",
           "type",
           "occurred_at",
@@ -7150,6 +7110,22 @@
           "title": {
             "type": "string",
             "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "criteria": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Criteria",
+            "default": []
           }
         },
         "type": "object",
@@ -7404,7 +7380,14 @@
             "title": "Evidence"
           },
           "duration_ms": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Duration Ms"
           }
         },
@@ -7706,6 +7689,49 @@
           "password"
         ],
         "title": "SignupCredentials"
+      },
+      "Tokens": {
+        "properties": {
+          "reserved_input": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserved Input"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Tokens"
       },
       "UnreadCount": {
         "properties": {

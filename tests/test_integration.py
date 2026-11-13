@@ -19,7 +19,7 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.deps import ProjectContext, project_access, project_manage, Pagination
 from app.core.errors import ServiceError
-from app.models import Project, Environment, Requirement, Result, AIUsage, Notification
+from app.models import Project, Environment, Requirement, Result, AIUsage, Notification, AnalysisRun
 from app.models.integration import Dispatch, Callback
 from app.schemas.requirements import RequirementCreate, RequirementUpdate, ApprovalRequest
 from app.schemas.runs import RunCreate
@@ -212,3 +212,101 @@ def test_criteria_reconciliation_resets_approval_and_rejects_foreign_ids(setup):
     assert len(resources.criteria(s.db, row)) == 2
     with pytest.raises(ServiceError):
         resources.update_requirement(s.db, s.context, s.rid, RequirementUpdate(acceptance_criteria=[{"id": str(uuid4()), "text": "Foreign"}]))
+
+
+def test_product_submission_idempotency_and_newest_first_pagination(setup):
+    s = setup
+    path = f"/projects/{s.context.project_id}/environments/{s.eid}/runs"
+    data = {"requirement_ids": [s.rid]}
+    first = s.client.post(path, json=data, headers={"Idempotency-Key": "click-1"})
+    repeated = s.client.post(path, json=data, headers={"Idempotency-Key": "click-1"})
+    assert first.status_code == repeated.status_code == 202
+    assert first.json()["id"] == repeated.json()["id"]
+    changed = s.client.post(path, json={"requirement_ids": [str(uuid4())]}, headers={"Idempotency-Key": "click-1"})
+    assert changed.status_code == 409
+    second = s.client.post(path, json=data, headers={"Idempotency-Key": "click-2"}).json()
+    assert second["run_number"] == 2
+    newest = s.client.get(path, params={"limit": 1}).json()
+    assert newest["items"][0]["id"] == second["id"]
+    older = s.client.get(path, params={"limit": 1, "cursor": newest["next_cursor"]}).json()
+    assert older["items"][0]["id"] == first.json()["id"]
+
+
+def test_dispatch_permanent_failure_is_visible_and_not_retried(setup):
+    s = setup
+    run, dispatch, envelope, path = queue(s)
+    assert dispatch_once(s.sessions, httpx.MockTransport(lambda request: httpx.Response(401)))
+    s.db.expire_all()
+    assert s.db.get(Dispatch, dispatch.id).status == "failed"
+    assert s.client.get(f'{path}/{run["id"]}').json()["status"] == "failed"
+    assert not dispatch_once(s.sessions, httpx.MockTransport(lambda request: pytest.fail("Should not retry permanent failures")))
+
+
+def test_empty_or_partial_outcomes_cannot_finish_a_run(setup):
+    s = setup
+    run, _, envelope, _ = queue(s)
+    finished = event(envelope, 1, "job.finished", {"status": "finished"})
+    assert send(s, run, envelope, "execution-events", finished).status_code == 409
+    assert s.db.get(AnalysisRun, resources.uid(run["id"])).status == "queued"
+
+
+def test_sse_replays_durable_usage_after_execution_cursor(setup, monkeypatch):
+    from app.services import events
+    s = setup
+    run, _, envelope, path = queue(s)
+    assert send(s, run, envelope, "execution-events", event(envelope, 1, "job.running", {"status": "running"})).status_code == 202
+    assert send(s, run, envelope, "ai-usage", usage(envelope)).status_code == 202
+    clock = iter([0, 1, 31])
+    monkeypatch.setattr(events, "time", SimpleNamespace(monotonic=lambda: next(clock), sleep=lambda _: None))
+    monkeypatch.setattr(events, "SessionLocal", s.sessions)
+    response = s.client.get(f'{path}/{run["id"]}/events', headers={"Last-Event-ID": "1"})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "id: 2\nevent: usage" in response.text
+    assert "id: 1\n" not in response.text
+    assert s.client.get(f'{path}/{run["id"]}/events', headers={"Last-Event-ID": "bad"}).status_code == 422
+
+
+def test_callbacks_cannot_cross_job_or_run_boundary(setup):
+    s = setup
+    run, _, envelope, _ = queue(s)
+    second, _, env2, _ = queue(s)
+    body = usage(envelope)
+    assert send(s, second, envelope, "ai-usage", body).status_code == 401
+    assert send(s, second, env2, "ai-usage", body).status_code == 409
+    assert send(s, run, envelope, "ai-usage", body).status_code == 202
+    body.update(job_id=env2["job_id"], event_id=str(uuid4()))
+    assert send(s, second, env2, "ai-usage", body).status_code == 409
+
+
+def test_active_dispatch_lease_is_not_claimed_twice(setup):
+    s = setup
+    _, dispatch, _, _ = queue(s)
+    dispatch.lease_until = analysis.now() + timedelta(seconds=60)
+    dispatch.lease_token = "another-worker"
+    s.db.commit()
+    assert not dispatch_once(s.sessions, httpx.MockTransport(lambda _: pytest.fail("Lease must block delivery")))
+
+
+@pytest.mark.parametrize("url", ["https://user:secret@example.com", "https://example.com:bad", "https://example.com/ bad", "https:///path"])
+def test_target_credentials_are_not_accepted_in_urls(url):
+    from pydantic import ValidationError
+    from app.schemas.environments import EnvironmentCreate, EnvironmentUpdate
+    with pytest.raises(ValidationError):
+        EnvironmentCreate(name="Unsafe", base_url=url)
+    with pytest.raises(ValidationError):
+        EnvironmentUpdate(base_url=url)
+
+
+def test_environment_revision_invalidates_verification_without_exposing_secrets(setup, monkeypatch):
+    from app.schemas.environments import EnvironmentUpdate
+    s = setup
+    monkeypatch.setenv("ENVIRONMENT_CREDENTIAL_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    get_settings.cache_clear()
+    environment = resources.scoped(s.db, Environment, s.context.project_id, s.eid)
+    environment.verified_at = analysis.now()
+    s.db.commit()
+    result = resources.update_environment(s.db, s.context, s.eid, EnvironmentUpdate(base_url="https://new.example.com", credentials={"password": "private-password"}))
+    assert result["revision"] == 2 and result["verified_at"] is None and result["has_credentials"]
+    assert "private-password" not in json.dumps(result, default=str)
+    assert "private-password" not in environment.encrypted_credentials

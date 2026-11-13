@@ -4,13 +4,13 @@ import json
 import secrets
 from datetime import datetime, timezone
 from uuid import uuid4
-from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
 from sqlalchemy import select, func
 
 from app.core.config import get_settings
 from app.core.errors import ServiceError
+from app.core.urls import target_url
 from app.models import AnalysisRun, Project, Environment, Requirement, Result, AIUsage, Action
 from app.models.integration import Dispatch, ResultDetail
 from app.services.resources import uid, scoped, criteria, credential_cipher, paginate
@@ -28,20 +28,33 @@ def cipher():
 
 
 def validate_url(value):
-    parsed = urlsplit(value)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
-        raise ServiceError("validation_error", "Use an HTTP(S) URL without embedded credentials.", 422)
-    return value
+    try:
+        return target_url(value)
+    except ValueError:
+        raise ServiceError("validation_error", "Use an HTTP(S) URL without embedded credentials.", 422) from None
 
 
-def create_run(db, context, eid, body):
+def create_run(db, context, eid, body, idempotency_key=None):
     settings = get_settings()
     if not settings.ai_service_url or not settings.ai_api_key or not settings.ai_callback_base_url:
         raise ServiceError("unavailable", "AI service dispatch is not configured.", 503)
     encryption = cipher()
+    submission_key = None
+    fingerprint = hashlib.sha256(json.dumps(body.model_dump(), sort_keys=True).encode()).hexdigest()
+    if idempotency_key is not None:
+        if not idempotency_key.strip() or len(idempotency_key) > 128:
+            raise ServiceError("validation_error", "Idempotency-Key must contain 1 to 128 nonblank characters.", 422)
+        scope = [context.project_id, str(eid), context.user.user_id, idempotency_key]
+        submission_key = hashlib.sha256(json.dumps(scope).encode()).hexdigest()
     # Project lock serializes run numbering and submission across API workers.
     db.scalar(select(Project).where(Project.id == uid(context.project_id)).with_for_update())
     environment = scoped(db, Environment, context.project_id, eid, lock=True)
+    if submission_key:
+        previous = db.scalar(select(Dispatch).where(Dispatch.submission_key == submission_key))
+        if previous:
+            if previous.request_fingerprint != fingerprint:
+                raise ServiceError("conflict", "Idempotency-Key was reused with a different request.", 409)
+            return run_out(db, db.get(AnalysisRun, previous.run_id))
     identifiers = [uid(value) for value in body.requirement_ids]
     if len(set(identifiers)) != len(identifiers):
         raise ServiceError("validation_error", "Select unique requirement IDs.", 422)
@@ -75,7 +88,8 @@ def create_run(db, context, eid, body):
     validate_url(envelope["callback_base_url"])
     db.add(Dispatch(id=uuid4(), run_id=run.id, job_id=job, encrypted_envelope=encryption.encrypt(
         json.dumps(envelope).encode()).decode(), token_hash=hashlib.sha256(token.encode()).hexdigest(),
-        status="pending", attempts=0, next_attempt_at=now(), last_sequence=0))
+        status="pending", attempts=0, next_attempt_at=now(), last_sequence=0,
+        submission_key=submission_key, request_fingerprint=fingerprint))
     db.commit()
     return run_out(db, run)
 
@@ -104,7 +118,17 @@ def list_runs(db, context, eid, page, status=None):
         if status not in {"queued", "running", "completed", "failed", "cancelled"}:
             raise ServiceError("validation_error", "Invalid run status.", 422)
         query = query.where(AnalysisRun.status == status)
-    return paginate(db, query, AnalysisRun, page, lambda row: run_out(db, row))
+    if page.cursor:
+        try:
+            number = int(page.cursor)
+            if number < 1:
+                raise ValueError()
+        except ValueError:
+            raise ServiceError("validation_error", "Invalid run cursor.", 422) from None
+        query = query.where(AnalysisRun.run_number < number)
+    rows = db.scalars(query.order_by(AnalysisRun.run_number.desc()).limit(page.limit + 1)).all()
+    return {"items": [run_out(db, row) for row in rows[:page.limit]],
+            "next_cursor": str(rows[page.limit - 1].run_number) if len(rows) > page.limit else None}
 
 
 def cancel_run(db, context, eid, runid):

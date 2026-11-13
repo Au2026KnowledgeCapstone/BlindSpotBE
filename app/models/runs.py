@@ -99,7 +99,7 @@ class Result(Identity, Base):
     verdict: Mapped[str] = mapped_column(Text)
     classification: Mapped[str] = mapped_column(Text)
     observed_behavior: Mapped[str] = mapped_column(Text)
-    duration_ms: Mapped[int] = mapped_column(Integer)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
 
 
 class CriterionAssessment(Identity, Base):

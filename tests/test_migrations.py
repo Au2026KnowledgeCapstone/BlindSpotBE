@@ -165,3 +165,8 @@ def test_anon_and_authenticated_have_no_blindspot_privileges():
             assert usage.authenticated_usage is False
     finally:
         engine.dispose()
+
+
+def test_local_schema_matches_models(local_engine):
+    command.upgrade(_alembic_config(), "head")
+    command.check(_alembic_config())

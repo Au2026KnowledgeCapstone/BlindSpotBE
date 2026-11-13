@@ -217,7 +217,6 @@ async def password_update(
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/requirements",
     tags=["Requirements"],
@@ -236,7 +235,6 @@ def list_requirements(
     return resources.list_requirements(db, context, page, q, category=category, priority=priority, approval_status=approval_status)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/requirements",
     tags=["Requirements"],
@@ -248,7 +246,6 @@ def create_requirement(db: Db, context: ProjectAccess, body: RequirementCreate) 
     return resources.create_requirement(db, context, body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
@@ -259,7 +256,6 @@ def get_requirement(db: Db, context: ProjectAccess, rid: str) -> Requirement:
     return resources.requirement_out(db, resources.scoped(db, resources.Requirement, context.project_id, rid))
 
 
-# SRINIVAS, WORK ON THESE
 @app.patch(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
@@ -274,7 +270,6 @@ def update_requirement(db: Db, context: ProjectAccess, rid: str, body: Requireme
     return resources.update_requirement(db, context, rid, body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.delete(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
@@ -285,7 +280,6 @@ def delete_requirement(db: Db, context: ProjectAccess, rid: str) -> None:
     return resources.delete_requirement(db, context, rid)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/requirements/{rid}/approval",
     tags=["Requirements"],
@@ -305,7 +299,6 @@ def approve_requirement(db: Db, context: ProjectAccess, rid: str, body: Approval
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/imports",
     tags=["Imports"],
@@ -327,7 +320,6 @@ async def create_import(
     raise todo("B7", "Document import")
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/imports/{iid}",
     tags=["Imports"],
@@ -338,7 +330,6 @@ def get_import(context: ProjectAccess, iid: str) -> ImportResult:
     raise todo("B7", "Document import")
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/imports/{iid}/documents/{did}",
     tags=["Imports"],
@@ -355,7 +346,6 @@ def download_document(context: ProjectAccess, iid: str, did: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/environments",
     tags=["Environments"],
@@ -366,7 +356,6 @@ def list_environments(db: Db, context: ProjectAccess, page: Paged) -> Page[Envir
     return resources.paginate(db, resources.select(resources.Environment).where(resources.Environment.project_id == resources.uid(context.project_id)), resources.Environment, page, resources.environment_out)
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/environments/{eid}",
     tags=["Environments"],
@@ -377,7 +366,6 @@ def get_environment(db: Db, context: ProjectAccess, eid: str) -> Environment:
     return resources.environment_out(resources.scoped(db, resources.Environment, context.project_id, eid))
 
 
-# SRINIVAS, WORK ON THESE
 @app.patch(
     "/projects/{pid}/environments/{eid}",
     tags=["Environments"],
@@ -389,7 +377,6 @@ def update_environment(db: Db, context: ProjectManage, eid: str, body: Environme
     return resources.update_environment(db, context, eid, body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/environments/{eid}/verify",
     tags=["Environments"],
@@ -406,7 +393,6 @@ def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
 # ---------------------------------------------------------------------------
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
@@ -422,7 +408,6 @@ def list_runs(
     return analysis.list_runs(db, context, eid, page, status)
 
 
-# Nishitha, WORK ON THIS
 @app.post(
     "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
@@ -432,14 +417,13 @@ def list_runs(
     description=(
         "Only approved requirements may be selected, at most ten per run. The run and its "
         "dispatch intent are saved in one transaction before aiservice is contacted, so a "
-        "failed dispatch is retried from what was saved rather than lost."
+        "failed dispatch is retried from what was saved rather than lost. Send Idempotency-Key to safely retry submissions."
     ),
 )
-def create_run(db: Db, context: ProjectAccess, eid: str, body: RunCreate) -> Run:
-    return analysis.create_run(db, context, eid, body)
+def create_run(db: Db, context: ProjectAccess, eid: str, body: RunCreate, request: Request) -> Run:
+    return analysis.create_run(db, context, eid, body, request.headers.get("idempotency-key"))
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}",
     tags=["Analysis"],
@@ -450,7 +434,6 @@ def get_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Run:
     return analysis.run_out(db, analysis.get_run(db, context, eid, runid))
 
 
-# Nishitha, WORK ON THIS
 @app.post(
     "/projects/{pid}/environments/{eid}/runs/{runid}/cancel",
     tags=["Analysis"],
@@ -462,7 +445,6 @@ def cancel_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Acknowle
     return analysis.cancel_run(db, context, eid, runid)
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/results",
     tags=["Analysis"],
@@ -473,7 +455,6 @@ def list_results(db: Db, context: ProjectAccess, eid: str, runid: str, page: Pag
     return analysis.list_results(db, context, eid, runid, page)
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}",
     tags=["Analysis"],
@@ -484,7 +465,6 @@ def get_result(db: Db, context: ProjectAccess, eid: str, runid: str, resid: str)
     return analysis.get_result(db, context, eid, runid, resid)
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/events",
     tags=["Analysis"],
@@ -498,7 +478,6 @@ def stream_run_events(db: Db, context: ProjectAccess, eid: str, runid: str, requ
     return events.stream(db, context, eid, runid, request)
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage",
     tags=["Analysis"],
@@ -515,7 +494,6 @@ def run_usage(db: Db, context: ProjectAccess, eid: str, runid: str) -> RunUsage:
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/evidence/{eid}",
     tags=["Evidence"],
@@ -537,7 +515,6 @@ def get_evidence(user: CurrentUser, eid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/execution-events",
     tags=["Internal"],
@@ -550,7 +527,6 @@ def receive_execution_event(db: Db, request: Request, runid: str, body: Executio
     return callbacks.execution(db, runid, request.headers.get("authorization"), body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/ai-usage",
     tags=["Internal"],
@@ -563,7 +539,6 @@ def receive_ai_usage(db: Db, request: Request, runid: str, body: AIUsageReport) 
     return callbacks.usage(db, runid, request.headers.get("authorization"), body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/ai-cost-finalizations",
     tags=["Internal"],

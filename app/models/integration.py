@@ -15,6 +15,8 @@ class Dispatch(Identity, Timestamp, Base):
     job_id: Mapped[str] = mapped_column(Text, unique=True)
     # Encrypted immutable envelope includes callback token and credential snapshot.
     encrypted_envelope: Mapped[str] = mapped_column(Text)
+    submission_key: Mapped[str | None] = mapped_column(Text, unique=True)
+    request_fingerprint: Mapped[str | None] = mapped_column(Text)
     token_hash: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
