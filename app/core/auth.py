@@ -185,7 +185,7 @@ def register_auth(app: FastAPI, settings: AuthSettings | None = None) -> None:
         allow_origins=list(settings.trusted_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "HEAD", "OPTIONS"],
-        allow_headers=["Content-Type", "X-Request-ID", "X-CSRF-Protection"],
+        allow_headers=["Content-Type", "X-Request-ID", "X-CSRF-Protection", "Idempotency-Key", "Last-Event-ID"],
         expose_headers=["X-Request-ID"],
     )
 

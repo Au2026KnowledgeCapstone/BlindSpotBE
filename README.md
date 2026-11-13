@@ -79,4 +79,19 @@ The API is fully typed and documented. Run the server and visit `/docs` for
 the OpenAPI spec and interactive Swagger UI. Visit `/redoc` for ReDoc.
 
 http://localhost:8000/docs#/
-    
+
+## AI integration
+
+Requirements, environments, runs, durable job dispatch, callback ingestion,
+usage reconciliation and replayable run events are implemented. Start the
+separate dispatcher alongside the API:
+
+```bash
+.venv/bin/python -m app.services.dispatch
+```
+
+See [AI integration](docs/ai-integration.md) for configuration, testing,
+operational recovery, and A1 protocol behavior. All 17 assigned routes in main
+are implemented; [assigned endpoint completion](docs/assigned-endpoints.md)
+explains document extraction, private downloads, browser login verification,
+configuration and the required aiservice companion branch.

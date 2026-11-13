@@ -55,6 +55,7 @@ from app.schemas.requirements import (
     RequirementUpdate,
 )
 from app.schemas.runs import Result, Run, RunCreate, RunUsage
+from app.services import resources, analysis, callbacks, events, imports, private_storage, verification
 from app.services.workspace_routes import router as workspace_router
 from app.services.auth import (
     complete_pkce_callback,
@@ -97,7 +98,7 @@ app = FastAPI(
     responses={
         401: {"model": ErrorResponse, "description": "Authentication required."},
         404: {"model": ErrorResponse, "description": "Not found, or not yours."},
-        501: {"model": ErrorResponse, "description": "Declared, not yet implemented."},
+        503: {"model": ErrorResponse, "description": "A required service is unavailable."},
     },
 )
 app.add_middleware(RequestIdMiddleware)
@@ -116,15 +117,6 @@ async def validation_error_redacting_auth_input(request: Request, exc: RequestVa
             status_code=422, content={"error": {"code": "validation_error", "message": "Invalid authentication request."}}
         )
     return await validation_error_handler(request, exc)
-
-
-def todo(handoff: str, what: str) -> ServiceError:
-    """A declared endpoint with no implementation yet.
-
-    Never a fake success. The message names what it is waiting on, so
-    'unfinished' is distinguishable from 'broken' at a glance.
-    """
-    return ServiceError("not_implemented", f"Not yet implemented. {what} lands in {handoff}.", 501)
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +208,6 @@ async def password_update(
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/requirements",
     tags=["Requirements"],
@@ -225,17 +216,16 @@ async def password_update(
     description="Search covers title, description, criteria text and id. Filters compose.",
 )
 def list_requirements(
-    context: ProjectAccess,
+    db: Db, context: ProjectAccess,
     page: Paged,
     q: Annotated[str | None, Query(description="Free-text search.")] = None,
     category: Annotated[str | None, Query()] = None,
     priority: Annotated[str | None, Query()] = None,
     approval_status: Annotated[str | None, Query()] = None,
 ) -> Page[Requirement]:
-    raise todo("B4", "Requirements")
+    return resources.list_requirements(db, context, page, q, category=category, priority=priority, approval_status=approval_status)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/requirements",
     tags=["Requirements"],
@@ -243,22 +233,20 @@ def list_requirements(
     status_code=201,
     response_model=Requirement,
 )
-def create_requirement(context: ProjectAccess, body: RequirementCreate) -> Requirement:
-    raise todo("B4", "Requirements")
+def create_requirement(db: Db, context: ProjectAccess, body: RequirementCreate) -> Requirement:
+    return resources.create_requirement(db, context, body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
     summary="Get a requirement",
     response_model=Requirement,
 )
-def get_requirement(context: ProjectAccess, rid: str) -> Requirement:
-    raise todo("B4", "Requirements")
+def get_requirement(db: Db, context: ProjectAccess, rid: str) -> Requirement:
+    return resources.requirement_out(db, resources.scoped(db, resources.Requirement, context.project_id, rid))
 
 
-# SRINIVAS, WORK ON THESE
 @app.patch(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
@@ -269,22 +257,20 @@ def get_requirement(context: ProjectAccess, rid: str) -> Requirement:
         "transaction. Editing title, description or criteria resets approval to draft."
     ),
 )
-def update_requirement(context: ProjectAccess, rid: str, body: RequirementUpdate) -> Requirement:
-    raise todo("B4", "Requirements")
+def update_requirement(db: Db, context: ProjectAccess, rid: str, body: RequirementUpdate) -> Requirement:
+    return resources.update_requirement(db, context, rid, body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.delete(
     "/projects/{pid}/requirements/{rid}",
     tags=["Requirements"],
     summary="Delete a requirement",
     status_code=204,
 )
-def delete_requirement(context: ProjectAccess, rid: str) -> None:
-    raise todo("B4", "Requirements")
+def delete_requirement(db: Db, context: ProjectAccess, rid: str) -> None:
+    return resources.delete_requirement(db, context, rid)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/requirements/{rid}/approval",
     tags=["Requirements"],
@@ -295,8 +281,8 @@ def delete_requirement(context: ProjectAccess, rid: str) -> None:
         "A requirement needing clarification cannot be approved until it has been edited."
     ),
 )
-def approve_requirement(context: ProjectAccess, rid: str, body: ApprovalRequest) -> Requirement:
-    raise todo("B4", "Approval")
+def approve_requirement(db: Db, context: ProjectAccess, rid: str, body: ApprovalRequest) -> Requirement:
+    return resources.approve_requirement(db, context, rid, body)
 
 
 # ---------------------------------------------------------------------------
@@ -304,7 +290,6 @@ def approve_requirement(context: ProjectAccess, rid: str, body: ApprovalRequest)
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/imports",
     tags=["Imports"],
@@ -318,26 +303,24 @@ def approve_requirement(context: ProjectAccess, rid: str, body: ApprovalRequest)
     ),
 )
 async def create_import(
-    context: ProjectAccess,
+    context: ProjectAccess, db: Db, request: Request,
     brd: Annotated[UploadFile, File(description="Business requirements document.")],
     srs: Annotated[UploadFile, File(description="Software requirements specification.")],
     design_spec: Annotated[UploadFile | None, File(description="Optional design specification.")] = None,
 ) -> ImportResult:
-    raise todo("B7", "Document import")
+    return await imports.create_import(db, context, request, brd, srs, design_spec)
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/imports/{iid}",
     tags=["Imports"],
     summary="Get an import and what it produced",
     response_model=ImportResult,
 )
-def get_import(context: ProjectAccess, iid: str) -> ImportResult:
-    raise todo("B7", "Document import")
+def get_import(db: Db, context: ProjectAccess, iid: str) -> ImportResult:
+    return imports.get_import(db, context, iid)
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/imports/{iid}/documents/{did}",
     tags=["Imports"],
@@ -345,38 +328,35 @@ def get_import(context: ProjectAccess, iid: str) -> ImportResult:
     status_code=302,
     description="Redirects to a short-lived signed URL. Source documents are retained so a reviewer can open the original.",
 )
-def download_document(context: ProjectAccess, iid: str, did: str) -> None:
-    raise todo("B7", "Document storage")
+def download_document(db: Db, context: ProjectAccess, iid: str, did: str, request: Request):
+    return private_storage.download_document(db, context, iid, did, request)
 
 
 # ---------------------------------------------------------------------------
-# Environments, @SRINIVAS WE MAY HAVE TO RENAME ENVIRONMENTS TO BROWSE CONFIG
+# Environments
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/environments",
     tags=["Environments"],
     summary="List a project's environments",
     response_model=Page[Environment],
 )
-def list_environments(context: ProjectAccess, page: Paged) -> Page[Environment]:
-    raise todo("B5", "Environments")
+def list_environments(db: Db, context: ProjectAccess, page: Paged) -> Page[Environment]:
+    return resources.paginate(db, resources.select(resources.Environment).where(resources.Environment.project_id == resources.uid(context.project_id)), resources.Environment, page, resources.environment_out)
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/projects/{pid}/environments/{eid}",
     tags=["Environments"],
     summary="Get an environment",
     response_model=Environment,
 )
-def get_environment(context: ProjectAccess, eid: str) -> Environment:
-    raise todo("B5", "Environments")
+def get_environment(db: Db, context: ProjectAccess, eid: str) -> Environment:
+    return resources.environment_out(resources.scoped(db, resources.Environment, context.project_id, eid))
 
 
-# SRINIVAS, WORK ON THESE
 @app.patch(
     "/projects/{pid}/environments/{eid}",
     tags=["Environments"],
@@ -384,11 +364,10 @@ def get_environment(context: ProjectAccess, eid: str) -> Environment:
     response_model=Environment,
     description="Changing base_url clears verification and bumps revision, invalidating any saved plan.",
 )
-def update_environment(context: ProjectManage, eid: str, body: EnvironmentUpdate) -> Environment:
-    raise todo("B5", "Environments")
+def update_environment(db: Db, context: ProjectManage, eid: str, body: EnvironmentUpdate) -> Environment:
+    return resources.update_environment(db, context, eid, body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/projects/{pid}/environments/{eid}/verify",
     tags=["Environments"],
@@ -396,8 +375,8 @@ def update_environment(context: ProjectManage, eid: str, body: EnvironmentUpdate
     status_code=202,
     response_model=Acknowledged,
 )
-def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
-    raise todo("B6", "Login verification")
+async def verify_environment(db: Db, context: ProjectManage, eid: str, request: Request) -> Acknowledged:
+    return await verification.verify(db, context, eid, request)
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +384,6 @@ def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
 # ---------------------------------------------------------------------------
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
@@ -413,15 +391,14 @@ def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
     response_model=Page[Run],
 )
 def list_runs(
-    context: ProjectAccess,
+    db: Db, context: ProjectAccess,
     eid: str,
     page: Paged,
     status: Annotated[str | None, Query(description="Filter by run status.")] = None,
 ) -> Page[Run]:
-    raise todo("B6", "Runs")
+    return analysis.list_runs(db, context, eid, page, status)
 
 
-# Nishitha, WORK ON THIS
 @app.post(
     "/projects/{pid}/environments/{eid}/runs",
     tags=["Analysis"],
@@ -431,25 +408,23 @@ def list_runs(
     description=(
         "Only approved requirements may be selected, at most ten per run. The run and its "
         "dispatch intent are saved in one transaction before aiservice is contacted, so a "
-        "failed dispatch is retried from what was saved rather than lost."
+        "failed dispatch is retried from what was saved rather than lost. Send Idempotency-Key to safely retry submissions."
     ),
 )
-def create_run(context: ProjectAccess, eid: str, body: RunCreate) -> Run:
-    raise todo("B6", "Queueing a run")
+def create_run(db: Db, context: ProjectAccess, eid: str, body: RunCreate, request: Request) -> Run:
+    return analysis.create_run(db, context, eid, body, request.headers.get("idempotency-key"))
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}",
     tags=["Analysis"],
     summary="Get a run",
     response_model=Run,
 )
-def get_run(context: ProjectAccess, eid: str, runid: str) -> Run:
-    raise todo("B6", "Runs")
+def get_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Run:
+    return analysis.run_out(db, analysis.get_run(db, context, eid, runid))
 
 
-# Nishitha, WORK ON THIS
 @app.post(
     "/projects/{pid}/environments/{eid}/runs/{runid}/cancel",
     tags=["Analysis"],
@@ -457,33 +432,30 @@ def get_run(context: ProjectAccess, eid: str, runid: str) -> Run:
     status_code=202,
     response_model=Acknowledged,
 )
-def cancel_run(context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
-    raise todo("B6", "Cancelling a run")
+def cancel_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
+    return analysis.cancel_run(db, context, eid, runid)
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/results",
     tags=["Analysis"],
     summary="List a run's per-requirement results",
     response_model=Page[Result],
 )
-def list_results(context: ProjectAccess, eid: str, runid: str, page: Paged) -> Page[Result]:
-    raise todo("B6", "Results")
+def list_results(db: Db, context: ProjectAccess, eid: str, runid: str, page: Paged) -> Page[Result]:
+    return analysis.list_results(db, context, eid, runid, page)
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/results/{resid}",
     tags=["Analysis"],
     summary="Get one result, with its evidence",
     response_model=Result,
 )
-def get_result(context: ProjectAccess, eid: str, runid: str, resid: str) -> Result:
-    raise todo("B6", "Results")
+def get_result(db: Db, context: ProjectAccess, eid: str, runid: str, resid: str) -> Result:
+    return analysis.get_result(db, context, eid, runid, resid)
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/events",
     tags=["Analysis"],
@@ -493,11 +465,10 @@ def get_result(context: ProjectAccess, eid: str, runid: str, resid: str) -> Resu
         "refetch the run on completion rather than trusting the stream alone."
     ),
 )
-def stream_run_events(context: ProjectAccess, eid: str, runid: str) -> None:
-    raise todo("B6", "The live event stream")
+def stream_run_events(db: Db, context: ProjectAccess, eid: str, runid: str, request: Request):
+    return events.stream(db, context, eid, runid, request)
 
 
-# Nishitha, WORK ON THIS
 @app.get(
     "/projects/{pid}/environments/{eid}/runs/{runid}/ai-usage",
     tags=["Analysis"],
@@ -505,8 +476,8 @@ def stream_run_events(context: ProjectAccess, eid: str, runid: str) -> None:
     response_model=RunUsage,
     description="Pending is not zero. Cost may arrive after a run finishes and is final only once everything expected has.",
 )
-def run_usage(context: ProjectAccess, eid: str, runid: str) -> RunUsage:
-    raise todo("B6", "Cost reporting")
+def run_usage(db: Db, context: ProjectAccess, eid: str, runid: str) -> RunUsage:
+    return analysis.usage_out(db, analysis.get_run(db, context, eid, runid))
 
 
 # ---------------------------------------------------------------------------
@@ -514,7 +485,6 @@ def run_usage(context: ProjectAccess, eid: str, runid: str) -> RunUsage:
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.get(
     "/evidence/{eid}",
     tags=["Evidence"],
@@ -522,8 +492,8 @@ def run_usage(context: ProjectAccess, eid: str, runid: str) -> RunUsage:
     status_code=302,
     description="Redirects to a short-lived signed URL. Evidence is served by id, never by storage path.",
 )
-def get_evidence(user: CurrentUser, eid: str) -> None:
-    raise todo("B6", "Evidence storage")
+async def get_evidence(db: Db, user: CurrentUser, eid: str, request: Request):
+    return await private_storage.get_evidence(db, user, eid, request)
 
 
 # ---------------------------------------------------------------------------
@@ -536,7 +506,6 @@ def get_evidence(user: CurrentUser, eid: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/execution-events",
     tags=["Internal"],
@@ -545,11 +514,10 @@ def get_evidence(user: CurrentUser, eid: str) -> None:
     response_model=Acknowledged,
     description="Deduplicated on event_id and ordered by sequence. Persisted before being published to the live stream.",
 )
-def receive_execution_event(runid: str, body: ExecutionEvent) -> Acknowledged:
-    raise todo("B6", "Execution event ingestion")
+def receive_execution_event(db: Db, request: Request, runid: str, body: ExecutionEvent) -> Acknowledged:
+    return callbacks.execution(db, runid, request.headers.get("authorization"), body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/ai-usage",
     tags=["Internal"],
@@ -558,11 +526,10 @@ def receive_execution_event(runid: str, body: ExecutionEvent) -> Acknowledged:
     response_model=Acknowledged,
     description="Idempotent on usage_id. A revision replaces an estimate rather than adding a second charge.",
 )
-def receive_ai_usage(runid: str, body: AIUsageReport) -> Acknowledged:
-    raise todo("B6", "Usage ingestion")
+def receive_ai_usage(db: Db, request: Request, runid: str, body: AIUsageReport) -> Acknowledged:
+    return callbacks.usage(db, runid, request.headers.get("authorization"), body)
 
 
-# SRINIVAS, WORK ON THESE
 @app.post(
     "/internal/v1/runs/{runid}/ai-cost-finalizations",
     tags=["Internal"],
@@ -571,5 +538,10 @@ def receive_ai_usage(runid: str, body: AIUsageReport) -> Acknowledged:
     response_model=Acknowledged,
     description="Cost becomes final only when the reported usage count matches. Run completion alone is not sufficient.",
 )
-def finalize_ai_cost(runid: str, body: CostFinalization) -> Acknowledged:
-    raise todo("B6", "Cost finalization")
+def finalize_ai_cost(db: Db, request: Request, runid: str, body: CostFinalization) -> Acknowledged:
+    return callbacks.finalize(db, runid, request.headers.get("authorization"), body)
+
+
+@app.get("/downloads/{token}", tags=["Evidence"], summary="Redeem a private five-minute download grant")
+def download_private_object(db: Db, user: CurrentUser, token: str):
+    return private_storage.download(db, user, token)

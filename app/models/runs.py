@@ -99,7 +99,7 @@ class Result(Identity, Base):
     verdict: Mapped[str] = mapped_column(Text)
     classification: Mapped[str] = mapped_column(Text)
     observed_behavior: Mapped[str] = mapped_column(Text)
-    duration_ms: Mapped[int] = mapped_column(Integer)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
 
 
 class CriterionAssessment(Identity, Base):
@@ -139,7 +139,7 @@ class Evidence(Identity, Base):
     media_type: Mapped[str | None] = mapped_column(Text)
     observation_id: Mapped[str | None] = mapped_column(Text)
     sha256: Mapped[str | None] = mapped_column(Text)
-    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True).evaluates_none())
 
 
 class Action(Identity, Base):

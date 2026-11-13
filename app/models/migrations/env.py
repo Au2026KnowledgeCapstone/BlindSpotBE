@@ -49,6 +49,14 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # A role named "blindspot" otherwise makes that schema PostgreSQL's
+        # implicit default ($user). Alembic then reflects it as schema=None and
+        # the ownership filter misses every existing application table.
+        # Public must also stay out of search_path: otherwise PostgreSQL
+        # omits its schema on reflected foreign keys and creates false drift.
+        connection.exec_driver_sql("SET SESSION search_path TO pg_catalog")
+        connection.commit()
+        connection.dialect.default_schema_name = "pg_catalog"
         _configure(connection=connection)
 
         with context.begin_transaction():

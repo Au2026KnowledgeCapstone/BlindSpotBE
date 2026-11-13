@@ -1,51 +1,54 @@
-"""Bodies aiservice posts back to BE. Never called by the frontend.
-
-Field names follow docs/frontend-api-design.md. They are provisional until the
-job envelope and event shapes are agreed, and are the subject of B6.
-
-Three rules hold whatever the fields become: persist before publishing,
-deduplicate on the event id, and mark cost final only when the expected usage
-has actually arrived.
-"""
+"""Wire contract shared with aiservice A1; no imports from its repository."""
 from datetime import datetime
+from decimal import Decimal
+from typing import Literal, Annotated
+from pydantic import BaseModel, Field, ConfigDict
 
-from pydantic import BaseModel, Field
+Identifier = Annotated[str, Field(min_length=1, max_length=128)]
 
 
-class ExecutionEvent(BaseModel):
-    event_id: str = Field(description="Deduplication key. A retry must not create a second row.")
-    job_id: str
-    attempt: int
-    sequence: int = Field(description="Orders events within an attempt.")
-    type: str
+class Wire(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+
+class ExecutionEvent(Wire):
+    event_id: Identifier
+    job_id: Identifier
+    attempt: int = Field(default=1, ge=1)
+    sequence: int = Field(gt=0)
+    type: Literal["job.running", "job.finished", "job.failed", "job.cancelled", "requirement.completed"]
     occurred_at: datetime
-    schema_version: int = 1
+    schema_version: Literal[1] = 1
     payload: dict
 
 
-class AIUsageReport(BaseModel):
-    usage_id: str = Field(description="Deduplication key. A retry must not add a second charge.")
-    event_id: str
-    revision: int = Field(default=1, description="A revision replaces an estimate; it does not add to it.")
-    cost_session_id: str
-    job_id: str
-    attempt: int
-    provider: str
-    model: str
-    operation: str
-    input_tokens: int | None = None
-    output_tokens: int | None = None
-    amount: float | None = None
-    currency: str = "USD"
-    status: str
-    occurred_at: datetime
+class Tokens(Wire):
+    reserved_input: int | None = Field(default=None, ge=0)
+    input: int | None = Field(default=None, ge=0)
+    output: int | None = Field(default=None, ge=0)
 
 
-class CostFinalization(BaseModel):
-    """Run completion alone is not sufficient — usage can arrive afterwards."""
+class AIUsageReport(Wire):
+    usage_id: Identifier
+    event_id: Identifier
+    revision: int = Field(ge=1, le=2)
+    cost_session_id: Identifier
+    job_id: Identifier
+    attempt: int = Field(default=1, ge=1)
+    provider: Identifier
+    model: Identifier
+    operation: Identifier
+    tokens: Tokens
+    amount: Decimal | None = Field(default=None, ge=0, max_digits=24, decimal_places=12)
+    currency: Literal["USD"] = "USD"
+    status: Literal["reserved", "succeeded", "failed", "unknown"]
+    timestamps: dict[str, datetime]
 
-    event_id: str
-    cost_session_id: str
-    revision: int = 1
-    final_usage_count: int
+
+class CostFinalization(Wire):
+    event_id: Identifier
+    cost_session_id: Identifier
+    revision: Literal[1] = 1
+    final_usage_count: int = Field(ge=0)
+    final_usage_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     closed_at: datetime
