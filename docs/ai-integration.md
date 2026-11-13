@@ -21,7 +21,7 @@ schema ownership remain the foundation.
 | Cost closure | Count AND SHA-256 digest checked; missing data is retryable 503; unknown amounts stay null |
 | Live updates | Durable per-run inbox positions, SSE replay with Last-Event-ID or after; membership rechecked while connected |
 | Notifications | One notification for terminal execution or permanent dispatch failure; replay creates no duplicate |
-| Cancellation | Safe before any dispatch attempt; already attempted work returns 409 because executor cancellation is unavailable |
+| Cancellation | Immediate before dispatch; after confirmed intake, asks aiservice to stop and waits for its terminal callback. An unsettled dispatch returns 409 for retry. |
 
 The v2 reference supplied requirement approval/reset behavior, project-scoped
 resource handling, frozen approved requirements, run/result separation, and
@@ -60,10 +60,10 @@ Run the durable dispatcher as a **separate process** with the same BE settings:
 .venv/bin/python -m app.services.dispatch --once
 ```
 
-Configure aiservice's own database, migrate it, set `ENGINE=stub`, and run it
-according to that repository's README. `AI_ENGINE=stub` is the backend default
-because aiservice's mvp/graph adapters are not implemented. Stub verdicts are
-inconclusive; the passing integration test does not demonstrate browser parity.
+Configure aiservice's own database, migrate it, install Chromium, and run it
+according to that repository's README. `AI_ENGINE=mvp` is the backend default.
+The graph engine remains deferred; use `AI_ENGINE=stub` only for deterministic
+integration checks. The stub round-trip test does not demonstrate browser parity.
 
 Authenticated product requests use existing cookies and CSRF headers:
 
@@ -81,6 +81,13 @@ The response is 202 only after run and dispatch persistence. It does not mean
 the executor has accepted the job yet. Runs list newest first, with an opaque
 run-number cursor. Result duration is null when the executor has not measured
 it. The run response includes full immutable requirement criteria.
+
+`POST /projects/{pid}/environments/{eid}/runs/{runid}/cancel` returns
+`{"status":"cancelled"}` before dispatch. Once aiservice has acknowledged the
+job, it returns `{"status":"cancellation_requested"}` after aiservice confirms
+the stop; the run's `cancel_requested` flag remains true until the durable
+`job.cancelled` callback sets its terminal status. An in-flight or retrying
+dispatch returns 409 and can be retried after its outcome settles.
 
 ## Callback and retry rules
 

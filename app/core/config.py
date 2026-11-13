@@ -16,7 +16,7 @@ class Settings(BaseModel):
     environment_credential_encryption_key: str | None = Field(default=None, repr=False)
     ai_api_key: str | None = Field(default=None, repr=False)
     ai_callback_base_url: str | None = None
-    ai_engine: Literal["mvp", "graph", "stub"] = "stub"
+    ai_engine: Literal["mvp", "graph", "stub"] = "mvp"
     dispatch_encryption_key: str | None = Field(default=None, repr=False)
     dispatch_timeout_seconds: int = Field(default=10, ge=1, le=120)
     dispatch_lease_seconds: int = Field(default=180, ge=130)

@@ -98,6 +98,7 @@ def run_out(db, row):
     count = db.scalar(select(func.count()).select_from(Action).join(Result, Action.result_id == Result.id).where(Result.analysis_run_id == row.id))
     return {"id": str(row.id), "run_number": row.run_number, "project_id": str(row.project_id),
             "environment_id": str(row.environment_id), "status": row.status, "engine": row.engine,
+            "cancel_requested": bool(row.cancel_requested),
             "requirement_snapshots": row.requirement_snapshots, "requested_by": str(row.requested_by),
             "queued_at": row.queued_at, "started_at": row.started_at, "completed_at": row.completed_at,
             "action_count": count, "estimated_cost_usd": usage_out(db, row)["estimated_cost_usd"], "error": row.error}
@@ -131,18 +132,35 @@ def list_runs(db, context, eid, page, status=None):
             "next_cursor": str(rows[page.limit - 1].run_number) if len(rows) > page.limit else None}
 
 
-def cancel_run(db, context, eid, runid):
+async def cancel_run(db, context, eid, runid, request):
     run = get_run(db, context, eid, runid, lock=True)
     dispatch = db.scalar(select(Dispatch).where(Dispatch.run_id == run.id).with_for_update())
     if run.status in {"completed", "failed", "cancelled"}:
         return {"status": run.status}
-    # Once a request has been attempted, intake may already have accepted it.
-    if dispatch.attempts or dispatch.status != "pending":
-        raise ServiceError("capability_unavailable", "aiservice does not expose remote cancellation.", 409)
-    dispatch.status = "cancelled"
-    run.status, run.completed_at, run.cancel_requested = "cancelled", now(), True
+    if run.cancel_requested:
+        return {"status": "cancellation_requested"}
+    if dispatch.status == "pending" and dispatch.attempts == 0:
+        dispatch.status = "cancelled"
+        run.status, run.completed_at, run.cancel_requested = "cancelled", now(), False
+        db.commit()
+        return {"status": "cancelled"}
+    # A pending retry or in-flight lease could still deliver the job. Wait for
+    # a confirmed intake acknowledgment before asking aiservice to cancel it.
+    if dispatch.status != "accepted":
+        raise ServiceError("dispatch_unsettled", "Dispatch is still settling. Retry cancellation shortly.", 409)
+    job_id = dispatch.job_id
+    db.rollback()  # No transaction stays open across the network request.
+    from app.services.capability_client import cancel_job
+    remote_status = await cancel_job(request, job_id)
+    if remote_status != "cancelled":
+        raise ServiceError("run_already_finished", "The job finished before cancellation was confirmed.", 409)
+    run = get_run(db, context, eid, runid, lock=True)
+    if run.status in {"completed", "failed", "cancelled"}:
+        return {"status": run.status}
+    run.cancel_requested = True
     db.commit()
-    return {"status": "cancelled"}
+    # The terminal job.cancelled callback still owns the authoritative status.
+    return {"status": "cancellation_requested"}
 
 
 def usage_out(db, run):

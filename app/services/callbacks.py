@@ -95,6 +95,7 @@ def execution(db, runid, authorization, body):
             run.started_at = body.occurred_at
         else:
             run.completed_at = body.occurred_at
+            run.cancel_requested = False
             # Keep arbitrary executor error text out of user-facing run metadata.
             run.error = "Executor failed." if status == "failed" else None
             db.add(Notification(id=uuid4(), user_id=run.requested_by, project_id=run.project_id,
