@@ -5,7 +5,7 @@ from app.models.public import Environment, Invitation, Notification, Profile, Pr
 from app.models.requirements import AcceptanceCriterion, Requirement
 from app.models.runs import Action, AnalysisRun, CriterionAssessment, Evidence, Result
 from app.models.usage import AIUsage
-
+from app.models.usage import AIUsage, AIUsageFinalization
 __all__ = [
     "AIUsage",
     "AcceptanceCriterion",

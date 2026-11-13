@@ -47,3 +47,26 @@ class AIUsage(Identity, Timestamp, Base):
     currency: Mapped[str] = mapped_column(Text, server_default="USD")
     status: Mapped[str] = mapped_column(Text, index=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+class AIUsageFinalization(Identity, Base):
+    __tablename__ = "ai_usage_finalizations"
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id",
+            name="uq_ai_usage_finalizations_event_id",
+        ),
+        UniqueConstraint(
+            "cost_session_id",
+            "revision",
+            name="uq_ai_usage_finalizations_session_revision",
+        ),
+        {"schema": "blindspot"},
+    )
+
+    event_id: Mapped[str] = mapped_column(Text)
+    cost_session_id: Mapped[str] = mapped_column(Text, index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    final_usage_count: Mapped[int] = mapped_column(Integer)
+    closed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True)
+    )
