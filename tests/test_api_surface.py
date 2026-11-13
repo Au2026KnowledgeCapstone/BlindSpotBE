@@ -146,7 +146,7 @@ def test_surface_matches_the_api_draft():
     }
 
     text = draft.read_text()
-    text = text.replace("E/", "/api/projects/{pid}/environments/{eid}/")
+    text = text.replace("E/", "/projects/{pid}/environments/{eid}/")
     documented = {
         re.sub(r"\{[^}]+\}", "{}", match.group(1).split("?")[0])
         for match in re.finditer(r"^(?:GET|POST|PATCH|PUT|DELETE)\s+(\S+)", text, re.MULTILINE)
