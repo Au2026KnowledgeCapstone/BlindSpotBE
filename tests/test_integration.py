@@ -203,6 +203,52 @@ def test_dispatch_retries_same_envelope_and_cancellation_boundary(setup):
     assert s.client.post(f'{path}/{second["id"]}/cancel').json()["status"] == "cancelled"
 
 
+def test_accepted_job_cancellation_waits_for_terminal_callback(setup):
+    s = setup
+    run, dispatch, envelope, path = queue(s)
+    dispatch.status = "accepted"
+    dispatch.attempts = 1
+    s.db.commit()
+    requests = []
+
+    def ai(request):
+        requests.append(request)
+        return httpx.Response(200, json={"job_id": envelope["job_id"], "status": "cancelled"})
+
+    s.client.app.state.ai_transport = httpx.MockTransport(ai)
+    try:
+        response = s.client.post(f'{path}/{run["id"]}/cancel')
+        assert response.status_code == 202 and response.json() == {"status": "cancellation_requested"}
+        assert requests[0].url.path == f'/v1/jobs/{envelope["job_id"]}/cancel'
+        assert requests[0].headers['authorization'] == 'Bearer intake-secret'
+        current = s.client.get(f'{path}/{run["id"]}').json()
+        assert current['cancel_requested'] is True and current['status'] == 'queued'
+        assert s.client.post(f'{path}/{run["id"]}/cancel').json()['status'] == 'cancellation_requested'
+        assert len(requests) == 1
+        cancelled = event(envelope, 1, 'job.cancelled', {'status': 'cancelled'})
+        assert send(s, run, envelope, 'execution-events', cancelled).status_code == 202
+        final = s.client.get(f'{path}/{run["id"]}').json()
+        assert final['status'] == 'cancelled' and final['cancel_requested'] is False
+    finally:
+        del s.client.app.state.ai_transport
+
+
+def test_malformed_cancellation_ack_does_not_mark_run_cancelled(setup):
+    s = setup
+    run, dispatch, _, path = queue(s)
+    dispatch.status = "accepted"
+    dispatch.attempts = 1
+    s.db.commit()
+    s.client.app.state.ai_transport = httpx.MockTransport(lambda _: httpx.Response(200, json=[]))
+    try:
+        response = s.client.post(f'{path}/{run["id"]}/cancel')
+        assert response.status_code == 502
+        current = s.client.get(f'{path}/{run["id"]}').json()
+        assert current['status'] == 'queued' and current['cancel_requested'] is False
+    finally:
+        del s.client.app.state.ai_transport
+
+
 def test_criteria_reconciliation_resets_approval_and_rejects_foreign_ids(setup):
     s = setup
     row = resources.scoped(s.db, Requirement, s.context.project_id, s.rid)

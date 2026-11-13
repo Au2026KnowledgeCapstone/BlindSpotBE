@@ -432,8 +432,8 @@ def get_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Run:
     status_code=202,
     response_model=Acknowledged,
 )
-def cancel_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
-    return analysis.cancel_run(db, context, eid, runid)
+async def cancel_run(db: Db, context: ProjectAccess, eid: str, runid: str, request: Request) -> Acknowledged:
+    return await analysis.cancel_run(db, context, eid, runid, request)
 
 
 @app.get(

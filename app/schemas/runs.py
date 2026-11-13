@@ -31,6 +31,7 @@ class Run(BaseModel):
     project_id: str
     environment_id: str
     status: RunStatus
+    cancel_requested: bool = False
     engine: Engine | None = Field(
         default=None, description="Which engine produced this run. Recorded so results stay comparable."
     )

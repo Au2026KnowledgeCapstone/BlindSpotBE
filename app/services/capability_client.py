@@ -62,3 +62,25 @@ async def evidence(request, job_id, evidence_id):
         return result
     except (httpx.HTTPError, ValidationError):
         raise ServiceError('ai_unavailable', 'Evidence retrieval failed.', 503) from None
+
+
+async def cancel_job(request, job_id):
+    """Request cancellation of a job whose dispatch was acknowledged by aiservice."""
+    from urllib.parse import quote
+
+    config = get_settings()
+    if not config.ai_service_url or not config.ai_api_key:
+        raise ServiceError('ai_unavailable', 'AI service is not configured.', 503)
+    url = config.ai_service_url.rstrip('/') + '/v1/jobs/' + quote(job_id, safe='') + '/cancel'
+    try:
+        async with httpx.AsyncClient(timeout=config.dispatch_timeout_seconds,
+                transport=getattr(request.app.state, 'ai_transport', None), follow_redirects=False, trust_env=False) as client:
+            response = await client.post(url, headers={'Authorization': 'Bearer ' + config.ai_api_key})
+        if response.status_code != 200:
+            raise ServiceError('ai_unavailable', 'AI service could not confirm cancellation.', 503)
+        data = response.json()
+        if not isinstance(data, dict) or data.get('job_id') != job_id or data.get('status') not in {'cancelled', 'finished', 'failed'}:
+            raise ServiceError('invalid_ai_response', 'AI service returned an invalid cancellation response.', 502)
+        return data['status']
+    except (httpx.HTTPError, ValueError):
+        raise ServiceError('ai_unavailable', 'AI service cancellation failed.', 503) from None
