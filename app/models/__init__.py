@@ -24,3 +24,5 @@ __all__ = [
     "Requirement",
     "Result",
 ]
+
+from app.models.integration import Dispatch, Callback, ResultDetail

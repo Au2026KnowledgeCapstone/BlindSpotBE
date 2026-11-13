@@ -52,8 +52,9 @@ def local_engine():
         # Alembic doesn't create its own target schema; these FK targets
         # don't exist on a bare local Postgres the way they do on Supabase.
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS blindspot"))
-        conn.execute(text("CREATE TABLE IF NOT EXISTS public.projects (id uuid PRIMARY KEY)"))
-        conn.execute(text("CREATE TABLE IF NOT EXISTS public.environments (id uuid PRIMARY KEY)"))
+        from app.models import Project, Environment
+        Project.__table__.create(conn, checkfirst=True)
+        Environment.__table__.create(conn, checkfirst=True)
     yield engine
     engine.dispose()
 
@@ -84,10 +85,10 @@ def test_composite_fk_tenancy_rejects_mismatched_project(local_engine):
     with pytest.raises(IntegrityError, match="fk_results_analysis_run_tenancy"):
         with local_engine.connect() as conn, conn.begin():
             conn.execute(
-                text("INSERT INTO public.projects (id) VALUES (:a), (:b)"),
+                text("INSERT INTO public.projects (id, owner_id, name, description, created_at) VALUES (:a, gen_random_uuid(), 'A', '', now()), (:b, gen_random_uuid(), 'B', '', now())"),
                 {"a": project_a, "b": project_b},
             )
-            conn.execute(text("INSERT INTO public.environments (id) VALUES (:e)"), {"e": environment_id})
+            conn.execute(text("INSERT INTO public.environments (id, project_id, name, kind, base_url, revision, created_at) VALUES (:e, :p, 'Staging', 'staging', 'https://example.com', 1, now())"), {"e": environment_id, "p": project_a})
             conn.execute(
                 text(
                     "INSERT INTO blindspot.analysis_runs "

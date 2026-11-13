@@ -55,6 +55,7 @@ from app.schemas.requirements import (
     RequirementUpdate,
 )
 from app.schemas.runs import Result, Run, RunCreate, RunUsage
+from app.services import resources, analysis, callbacks, events
 from app.services.workspace_routes import router as workspace_router
 from app.services.auth import (
     complete_pkce_callback,
@@ -225,14 +226,14 @@ async def password_update(
     description="Search covers title, description, criteria text and id. Filters compose.",
 )
 def list_requirements(
-    context: ProjectAccess,
+    db: Db, context: ProjectAccess,
     page: Paged,
     q: Annotated[str | None, Query(description="Free-text search.")] = None,
     category: Annotated[str | None, Query()] = None,
     priority: Annotated[str | None, Query()] = None,
     approval_status: Annotated[str | None, Query()] = None,
 ) -> Page[Requirement]:
-    raise todo("B4", "Requirements")
+    return resources.list_requirements(db, context, page, q, category=category, priority=priority, approval_status=approval_status)
 
 
 # SRINIVAS, WORK ON THESE
@@ -243,8 +244,8 @@ def list_requirements(
     status_code=201,
     response_model=Requirement,
 )
-def create_requirement(context: ProjectAccess, body: RequirementCreate) -> Requirement:
-    raise todo("B4", "Requirements")
+def create_requirement(db: Db, context: ProjectAccess, body: RequirementCreate) -> Requirement:
+    return resources.create_requirement(db, context, body)
 
 
 # SRINIVAS, WORK ON THESE
@@ -254,8 +255,8 @@ def create_requirement(context: ProjectAccess, body: RequirementCreate) -> Requi
     summary="Get a requirement",
     response_model=Requirement,
 )
-def get_requirement(context: ProjectAccess, rid: str) -> Requirement:
-    raise todo("B4", "Requirements")
+def get_requirement(db: Db, context: ProjectAccess, rid: str) -> Requirement:
+    return resources.requirement_out(db, resources.scoped(db, resources.Requirement, context.project_id, rid))
 
 
 # SRINIVAS, WORK ON THESE
@@ -269,8 +270,8 @@ def get_requirement(context: ProjectAccess, rid: str) -> Requirement:
         "transaction. Editing title, description or criteria resets approval to draft."
     ),
 )
-def update_requirement(context: ProjectAccess, rid: str, body: RequirementUpdate) -> Requirement:
-    raise todo("B4", "Requirements")
+def update_requirement(db: Db, context: ProjectAccess, rid: str, body: RequirementUpdate) -> Requirement:
+    return resources.update_requirement(db, context, rid, body)
 
 
 # SRINIVAS, WORK ON THESE
@@ -280,8 +281,8 @@ def update_requirement(context: ProjectAccess, rid: str, body: RequirementUpdate
     summary="Delete a requirement",
     status_code=204,
 )
-def delete_requirement(context: ProjectAccess, rid: str) -> None:
-    raise todo("B4", "Requirements")
+def delete_requirement(db: Db, context: ProjectAccess, rid: str) -> None:
+    return resources.delete_requirement(db, context, rid)
 
 
 # SRINIVAS, WORK ON THESE
@@ -295,8 +296,8 @@ def delete_requirement(context: ProjectAccess, rid: str) -> None:
         "A requirement needing clarification cannot be approved until it has been edited."
     ),
 )
-def approve_requirement(context: ProjectAccess, rid: str, body: ApprovalRequest) -> Requirement:
-    raise todo("B4", "Approval")
+def approve_requirement(db: Db, context: ProjectAccess, rid: str, body: ApprovalRequest) -> Requirement:
+    return resources.approve_requirement(db, context, rid, body)
 
 
 # ---------------------------------------------------------------------------
@@ -361,8 +362,8 @@ def download_document(context: ProjectAccess, iid: str, did: str) -> None:
     summary="List a project's environments",
     response_model=Page[Environment],
 )
-def list_environments(context: ProjectAccess, page: Paged) -> Page[Environment]:
-    raise todo("B5", "Environments")
+def list_environments(db: Db, context: ProjectAccess, page: Paged) -> Page[Environment]:
+    return resources.paginate(db, resources.select(resources.Environment).where(resources.Environment.project_id == resources.uid(context.project_id)), resources.Environment, page, resources.environment_out)
 
 
 # SRINIVAS, WORK ON THESE
@@ -372,8 +373,8 @@ def list_environments(context: ProjectAccess, page: Paged) -> Page[Environment]:
     summary="Get an environment",
     response_model=Environment,
 )
-def get_environment(context: ProjectAccess, eid: str) -> Environment:
-    raise todo("B5", "Environments")
+def get_environment(db: Db, context: ProjectAccess, eid: str) -> Environment:
+    return resources.environment_out(resources.scoped(db, resources.Environment, context.project_id, eid))
 
 
 # SRINIVAS, WORK ON THESE
@@ -384,8 +385,8 @@ def get_environment(context: ProjectAccess, eid: str) -> Environment:
     response_model=Environment,
     description="Changing base_url clears verification and bumps revision, invalidating any saved plan.",
 )
-def update_environment(context: ProjectManage, eid: str, body: EnvironmentUpdate) -> Environment:
-    raise todo("B5", "Environments")
+def update_environment(db: Db, context: ProjectManage, eid: str, body: EnvironmentUpdate) -> Environment:
+    return resources.update_environment(db, context, eid, body)
 
 
 # SRINIVAS, WORK ON THESE
@@ -413,12 +414,12 @@ def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
     response_model=Page[Run],
 )
 def list_runs(
-    context: ProjectAccess,
+    db: Db, context: ProjectAccess,
     eid: str,
     page: Paged,
     status: Annotated[str | None, Query(description="Filter by run status.")] = None,
 ) -> Page[Run]:
-    raise todo("B6", "Runs")
+    return analysis.list_runs(db, context, eid, page, status)
 
 
 # Nishitha, WORK ON THIS
@@ -434,8 +435,8 @@ def list_runs(
         "failed dispatch is retried from what was saved rather than lost."
     ),
 )
-def create_run(context: ProjectAccess, eid: str, body: RunCreate) -> Run:
-    raise todo("B6", "Queueing a run")
+def create_run(db: Db, context: ProjectAccess, eid: str, body: RunCreate) -> Run:
+    return analysis.create_run(db, context, eid, body)
 
 
 # Nishitha, WORK ON THIS
@@ -445,8 +446,8 @@ def create_run(context: ProjectAccess, eid: str, body: RunCreate) -> Run:
     summary="Get a run",
     response_model=Run,
 )
-def get_run(context: ProjectAccess, eid: str, runid: str) -> Run:
-    raise todo("B6", "Runs")
+def get_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Run:
+    return analysis.run_out(db, analysis.get_run(db, context, eid, runid))
 
 
 # Nishitha, WORK ON THIS
@@ -457,8 +458,8 @@ def get_run(context: ProjectAccess, eid: str, runid: str) -> Run:
     status_code=202,
     response_model=Acknowledged,
 )
-def cancel_run(context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
-    raise todo("B6", "Cancelling a run")
+def cancel_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
+    return analysis.cancel_run(db, context, eid, runid)
 
 
 # Nishitha, WORK ON THIS
@@ -468,8 +469,8 @@ def cancel_run(context: ProjectAccess, eid: str, runid: str) -> Acknowledged:
     summary="List a run's per-requirement results",
     response_model=Page[Result],
 )
-def list_results(context: ProjectAccess, eid: str, runid: str, page: Paged) -> Page[Result]:
-    raise todo("B6", "Results")
+def list_results(db: Db, context: ProjectAccess, eid: str, runid: str, page: Paged) -> Page[Result]:
+    return analysis.list_results(db, context, eid, runid, page)
 
 
 # Nishitha, WORK ON THIS
@@ -479,8 +480,8 @@ def list_results(context: ProjectAccess, eid: str, runid: str, page: Paged) -> P
     summary="Get one result, with its evidence",
     response_model=Result,
 )
-def get_result(context: ProjectAccess, eid: str, runid: str, resid: str) -> Result:
-    raise todo("B6", "Results")
+def get_result(db: Db, context: ProjectAccess, eid: str, runid: str, resid: str) -> Result:
+    return analysis.get_result(db, context, eid, runid, resid)
 
 
 # Nishitha, WORK ON THIS
@@ -493,8 +494,8 @@ def get_result(context: ProjectAccess, eid: str, runid: str, resid: str) -> Resu
         "refetch the run on completion rather than trusting the stream alone."
     ),
 )
-def stream_run_events(context: ProjectAccess, eid: str, runid: str) -> None:
-    raise todo("B6", "The live event stream")
+def stream_run_events(db: Db, context: ProjectAccess, eid: str, runid: str, request: Request):
+    return events.stream(db, context, eid, runid, request)
 
 
 # Nishitha, WORK ON THIS
@@ -505,8 +506,8 @@ def stream_run_events(context: ProjectAccess, eid: str, runid: str) -> None:
     response_model=RunUsage,
     description="Pending is not zero. Cost may arrive after a run finishes and is final only once everything expected has.",
 )
-def run_usage(context: ProjectAccess, eid: str, runid: str) -> RunUsage:
-    raise todo("B6", "Cost reporting")
+def run_usage(db: Db, context: ProjectAccess, eid: str, runid: str) -> RunUsage:
+    return analysis.usage_out(db, analysis.get_run(db, context, eid, runid))
 
 
 # ---------------------------------------------------------------------------
@@ -545,8 +546,8 @@ def get_evidence(user: CurrentUser, eid: str) -> None:
     response_model=Acknowledged,
     description="Deduplicated on event_id and ordered by sequence. Persisted before being published to the live stream.",
 )
-def receive_execution_event(runid: str, body: ExecutionEvent) -> Acknowledged:
-    raise todo("B6", "Execution event ingestion")
+def receive_execution_event(db: Db, request: Request, runid: str, body: ExecutionEvent) -> Acknowledged:
+    return callbacks.execution(db, runid, request.headers.get("authorization"), body)
 
 
 # SRINIVAS, WORK ON THESE
@@ -558,8 +559,8 @@ def receive_execution_event(runid: str, body: ExecutionEvent) -> Acknowledged:
     response_model=Acknowledged,
     description="Idempotent on usage_id. A revision replaces an estimate rather than adding a second charge.",
 )
-def receive_ai_usage(runid: str, body: AIUsageReport) -> Acknowledged:
-    raise todo("B6", "Usage ingestion")
+def receive_ai_usage(db: Db, request: Request, runid: str, body: AIUsageReport) -> Acknowledged:
+    return callbacks.usage(db, runid, request.headers.get("authorization"), body)
 
 
 # SRINIVAS, WORK ON THESE
@@ -571,5 +572,5 @@ def receive_ai_usage(runid: str, body: AIUsageReport) -> Acknowledged:
     response_model=Acknowledged,
     description="Cost becomes final only when the reported usage count matches. Run completion alone is not sufficient.",
 )
-def finalize_ai_cost(runid: str, body: CostFinalization) -> Acknowledged:
-    raise todo("B6", "Cost finalization")
+def finalize_ai_cost(db: Db, request: Request, runid: str, body: CostFinalization) -> Acknowledged:
+    return callbacks.finalize(db, runid, request.headers.get("authorization"), body)

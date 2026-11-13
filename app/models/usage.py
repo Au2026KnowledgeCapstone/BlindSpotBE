@@ -12,7 +12,7 @@ from decimal import Decimal
 import uuid
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -43,7 +43,9 @@ class AIUsage(Identity, Timestamp, Base):
     operation: Mapped[str] = mapped_column(Text)
     input_tokens: Mapped[int | None] = mapped_column(BigInteger)
     output_tokens: Mapped[int | None] = mapped_column(BigInteger)
-    amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 10))
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 12))
     currency: Mapped[str] = mapped_column(Text, server_default="USD")
     status: Mapped[str] = mapped_column(Text, index=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    tokens: Mapped[dict | None] = mapped_column(JSONB)

@@ -10,3 +10,5 @@ __pycache__/
 .tools/
 .mcp.json
 .claude
+*.egg-info/
+.pytest_cache/
