@@ -13,16 +13,6 @@ Name = Field(min_length=1, max_length=120)
 Description = Field(default="", max_length=2000)
 
 
-class Me(BaseModel):
-    user_id: str
-    email: str
-    display_name: str = ""
-
-
-class MeUpdate(BaseModel):
-    display_name: str = Field(max_length=100)
-
-
 class Project(BaseModel):
     id: str
     name: str

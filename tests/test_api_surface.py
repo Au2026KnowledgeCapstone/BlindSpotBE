@@ -59,23 +59,10 @@ def test_every_operation_is_tagged():
     assert not untagged, f"operations without a tag: {untagged}"
 
 
-def test_unimplemented_endpoints_say_so(client):
-    """An unimplemented route returns 501 with a reason — never a fake success.
-
-    The Flask app this replaced returned 200 with echoed input, which read as
-    working. That is the failure mode being guarded against.
-    """
-    _authenticate(client)
-
-    response = client.patch(
-        "/me",
-        json={"display_name": "x"},
-        headers={"Origin": "http://localhost:3000", "X-CSRF-Protection": "1"},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["display_name"] == "x"
-    assert "data_received" not in response.text
+def test_unused_me_route_is_absent():
+    paths = main.app.openapi()["paths"]
+    assert "/me" not in paths
+    assert "get" in paths["/auth/me"]
 
 
 def test_authentication_is_checked_before_implementation(client):

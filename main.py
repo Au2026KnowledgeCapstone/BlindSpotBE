@@ -37,7 +37,6 @@ from app.schemas.environments import Environment, EnvironmentCreate, Environment
 from app.schemas.identity import (
     Invitation,
     InvitationCreate,
-    Me,
     Member,
     Notification,
     NotificationUpdate,

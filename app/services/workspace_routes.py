@@ -19,8 +19,6 @@ from app.schemas.identity import (
     Invitation as InvitationOut,
     InvitationCreate,
     Member,
-    Me,
-    MeUpdate,
     Notification,
     NotificationUpdate,
     Project as ProjectOut,
@@ -130,20 +128,6 @@ def _environment_out(row: dict) -> dict:
 
 def _project_select() -> str:
     return "id,name,description,owner_id,created_at"
-
-
-@router.get("/me", response_model=Me, tags=["Identity"])
-async def get_me(request: Request, response: Response, user: AuthenticatedUser = Depends(current_user)):
-    response.headers["Cache-Control"] = "no-store"
-    profile = _rows(await rest(request, token(request), "GET", "profiles", params={"user_id": f"eq.{user.user_id}", "select": "display_name", "limit": "1"}))
-    return Me(user_id=user.user_id, email=user.email, display_name=profile[0]["display_name"] if profile else "")
-
-
-@router.patch("/me", response_model=Me, tags=["Identity"])
-async def update_me(body: MeUpdate, request: Request, response: Response, user: AuthenticatedUser = Depends(current_user)):
-    response.headers["Cache-Control"] = "no-store"
-    await rest(request, token(request), "PATCH", "profiles", params={"user_id": f"eq.{user.user_id}"}, body={"display_name": body.display_name})
-    return Me(user_id=user.user_id, email=user.email, display_name=body.display_name)
 
 
 @router.get("/projects", response_model=Page[ProjectOut], tags=["Projects"])

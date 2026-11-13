@@ -10,7 +10,7 @@ Application paths no longer have a leading `/api` prefix. Existing clients using
 - `GET /projects/{pid}/members`, `GET/POST /projects/{pid}/invitations`, `POST /invitations/{iid}/accept`, and `GET /invitations` use caller-scoped RLS. Inbox results are pending, unexpired invitations for the verified cookie email; `accepted_at` is filtered server-side, not included in `Invitation`.
 - `GET /projects/{pid}/workspace` is a bounded first-page summary of applications, environments, saved scan requests, and existing test results. It has no cursor; use per-resource endpoints for pagination when available. Scan requests remain `queued`; they are not execution runs/results.
 - `POST /projects/{pid}/applications`, `/environments`, and `/scans` preserve current workspace writes. Environment credentials are write-only and encrypted by BE in a parameterized database transaction; environment `application_id` is nullable. Do not grant browser roles access to encrypted credential columns.
-- `GET/PATCH /me`, `GET /notifications`, `GET /notifications/unread-count`, and `PATCH /notifications/{nid}` complete the current identity surface.
+- `GET /auth/me` provides the current user; `GET /notifications`, `GET /notifications/unread-count`, and `PATCH /notifications/{nid}` provide notifications.
 
 Workspace reads return `Page<T> = {items, next_cursor}`. Authenticated responses are no-store. Mutations require exact trusted `Origin`, JSON, and `X-CSRF-Protection: 1`.
 
