@@ -26,6 +26,7 @@ def current_context() -> dict:
 
 def clean_text(value) -> str:
     text = str(value)
+    text = re.sub(r"(/downloads/)[A-Za-z0-9_=\-]+", r"\1[redacted]", text)
     # Authorization headers and bearer tokens.
     text = re.sub(r"(?i)\bBearer\s+[^\s,;'\"}]+", "Bearer [redacted]", text)
     # JWT-shaped tokens.

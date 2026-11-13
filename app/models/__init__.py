@@ -26,3 +26,5 @@ __all__ = [
 ]
 
 from app.models.integration import Dispatch, Callback, ResultDetail
+
+from app.models.assets import ImportRequirement, EnvironmentVerification

@@ -55,7 +55,7 @@ from app.schemas.requirements import (
     RequirementUpdate,
 )
 from app.schemas.runs import Result, Run, RunCreate, RunUsage
-from app.services import resources, analysis, callbacks, events
+from app.services import resources, analysis, callbacks, events, imports, private_storage, verification
 from app.services.workspace_routes import router as workspace_router
 from app.services.auth import (
     complete_pkce_callback,
@@ -98,7 +98,7 @@ app = FastAPI(
     responses={
         401: {"model": ErrorResponse, "description": "Authentication required."},
         404: {"model": ErrorResponse, "description": "Not found, or not yours."},
-        501: {"model": ErrorResponse, "description": "Declared, not yet implemented."},
+        503: {"model": ErrorResponse, "description": "A required service is unavailable."},
     },
 )
 app.add_middleware(RequestIdMiddleware)
@@ -117,15 +117,6 @@ async def validation_error_redacting_auth_input(request: Request, exc: RequestVa
             status_code=422, content={"error": {"code": "validation_error", "message": "Invalid authentication request."}}
         )
     return await validation_error_handler(request, exc)
-
-
-def todo(handoff: str, what: str) -> ServiceError:
-    """A declared endpoint with no implementation yet.
-
-    Never a fake success. The message names what it is waiting on, so
-    'unfinished' is distinguishable from 'broken' at a glance.
-    """
-    return ServiceError("not_implemented", f"Not yet implemented. {what} lands in {handoff}.", 501)
 
 
 # ---------------------------------------------------------------------------
@@ -312,12 +303,12 @@ def approve_requirement(db: Db, context: ProjectAccess, rid: str, body: Approval
     ),
 )
 async def create_import(
-    context: ProjectAccess,
+    context: ProjectAccess, db: Db, request: Request,
     brd: Annotated[UploadFile, File(description="Business requirements document.")],
     srs: Annotated[UploadFile, File(description="Software requirements specification.")],
     design_spec: Annotated[UploadFile | None, File(description="Optional design specification.")] = None,
 ) -> ImportResult:
-    raise todo("B7", "Document import")
+    return await imports.create_import(db, context, request, brd, srs, design_spec)
 
 
 @app.get(
@@ -326,8 +317,8 @@ async def create_import(
     summary="Get an import and what it produced",
     response_model=ImportResult,
 )
-def get_import(context: ProjectAccess, iid: str) -> ImportResult:
-    raise todo("B7", "Document import")
+def get_import(db: Db, context: ProjectAccess, iid: str) -> ImportResult:
+    return imports.get_import(db, context, iid)
 
 
 @app.get(
@@ -337,12 +328,12 @@ def get_import(context: ProjectAccess, iid: str) -> ImportResult:
     status_code=302,
     description="Redirects to a short-lived signed URL. Source documents are retained so a reviewer can open the original.",
 )
-def download_document(context: ProjectAccess, iid: str, did: str) -> None:
-    raise todo("B7", "Document storage")
+def download_document(db: Db, context: ProjectAccess, iid: str, did: str, request: Request):
+    return private_storage.download_document(db, context, iid, did, request)
 
 
 # ---------------------------------------------------------------------------
-# Environments, @SRINIVAS WE MAY HAVE TO RENAME ENVIRONMENTS TO BROWSE CONFIG
+# Environments
 # ---------------------------------------------------------------------------
 
 
@@ -384,8 +375,8 @@ def update_environment(db: Db, context: ProjectManage, eid: str, body: Environme
     status_code=202,
     response_model=Acknowledged,
 )
-def verify_environment(context: ProjectManage, eid: str) -> Acknowledged:
-    raise todo("B6", "Login verification")
+async def verify_environment(db: Db, context: ProjectManage, eid: str, request: Request) -> Acknowledged:
+    return await verification.verify(db, context, eid, request)
 
 
 # ---------------------------------------------------------------------------
@@ -501,8 +492,8 @@ def run_usage(db: Db, context: ProjectAccess, eid: str, runid: str) -> RunUsage:
     status_code=302,
     description="Redirects to a short-lived signed URL. Evidence is served by id, never by storage path.",
 )
-def get_evidence(user: CurrentUser, eid: str) -> None:
-    raise todo("B6", "Evidence storage")
+async def get_evidence(db: Db, user: CurrentUser, eid: str, request: Request):
+    return await private_storage.get_evidence(db, user, eid, request)
 
 
 # ---------------------------------------------------------------------------
@@ -549,3 +540,8 @@ def receive_ai_usage(db: Db, request: Request, runid: str, body: AIUsageReport) 
 )
 def finalize_ai_cost(db: Db, request: Request, runid: str, body: CostFinalization) -> Acknowledged:
     return callbacks.finalize(db, runid, request.headers.get("authorization"), body)
+
+
+@app.get("/downloads/{token}", tags=["Evidence"], summary="Redeem a private five-minute download grant")
+def download_private_object(db: Db, user: CurrentUser, token: str):
+    return private_storage.download(db, user, token)

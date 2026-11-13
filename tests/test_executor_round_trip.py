@@ -54,7 +54,8 @@ def test_real_executor_stub_round_trip(tmp_path, monkeypatch):
     be_port, ai_port = port(), port()
     settings = {"DATABASE_URL": url, "AI_SERVICE_URL": f"http://127.0.0.1:{ai_port}",
                 "AI_API_KEY": "test-intake-secret", "AI_CALLBACK_BASE_URL": f"http://127.0.0.1:{be_port}/internal/v1",
-                "DISPATCH_ENCRYPTION_KEY": Fernet.generate_key().decode(), "AI_ENGINE": "stub"}
+                "DISPATCH_ENCRYPTION_KEY": Fernet.generate_key().decode(), "AI_ENGINE": "stub", "PRIVATE_STORAGE_DIR": str(tmp_path / "private"),
+                "DOWNLOAD_SIGNING_KEY": Fernet.generate_key().decode()}
     for key, value in settings.items():
         monkeypatch.setenv(key, value)
     get_settings.cache_clear()
@@ -99,6 +100,17 @@ def test_real_executor_stub_round_trip(tmp_path, monkeypatch):
                         cost = analysis.usage_out(db, finished)
                         assert cost["cost_status"] == "final" and cost["estimated_cost_usd"] == 0
                         assert dispatch.status == "accepted"
+                        from app.models.integration import ResultDetail
+                        from app.services import private_storage
+                        import asyncio
+                        detail = db.get(ResultDetail, result.id)
+                        evidence_id = detail.outcome["criterion_verdicts"][0]["cited_evidence_ids"][0]
+                        request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+                            auth_settings=SimpleNamespace(backend_origin=f"http://127.0.0.1:{be_port}"))))
+                        response = asyncio.run(private_storage.get_evidence(db, context.user, evidence_id, request))
+                        token = response.headers["location"].rsplit("/", 1)[1]
+                        download = private_storage.download(db, context.user, token)
+                        assert Path(download.path).read_bytes()
                         return
                 time.sleep(.1)
             raise AssertionError("Callbacks did not complete; inspect backend.log and executor.log")

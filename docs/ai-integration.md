@@ -116,27 +116,19 @@ that exact dispatch to pending and its run to queued in a controlled database
 transaction; preserve job ID, envelope and event history. There is no automatic
 operator replay endpoint or key-rotation UI.
 
-## Remaining upstream capabilities
+## Capability extensions
 
-These endpoints continue to return explicit 501 responses because the current
-executor has no supporting protocol. This branch does not fabricate success:
+The previously incomplete assigned handlers are now implemented. See
+[assigned endpoint completion](assigned-endpoints.md) for the 17-route inventory,
+new migrations, retained source documents, private evidence downloads and
+revision-safe login verification. These capabilities require aiservice branch
+`feat/backend-capabilities`, extraction model configuration, a browser runtime,
+a private persistent storage volume and a download-signing key.
 
-* Document import/extraction and retained source-document download: v2's AI
-  extraction runs in-process; aiservice only exposes jobs, not an import API.
-  An extraction contract and private document storage must be implemented next.
-* Environment login verification: requires a real browser engine and a typed
-  verification result, not a stub execution.
-* Evidence retrieval: A1 evidence IDs name operational outbox records, not
-  uploaded private objects. A2 must provide authorized storage references and
-  an upload/retrieval contract before BE can issue signed downloads.
-* Remote cancellation: aiservice has no cancellation endpoint. Only a job that
-  BE has never attempted to send can currently be cancelled safely.
-
-Callback result JSON retains citations and action evidence IDs without creating
-fake downloadable evidence records. Source requirements with results cannot be
-deleted because history references them; active selected requirements are also
-protected. Engine cost/pricing implementations and live browser behavior remain
-executor work, not BE behavior proven by these tests.
+Full browser business-flow engines and remote cancellation remain separate
+work. Cancellation after a dispatch attempt still returns an explicit conflict
+because the executor has no remote cancellation endpoint. This is not one of
+the 17 SRINIVAS assignments.
 
 ## Verification
 

@@ -91,5 +91,7 @@ separate dispatcher alongside the API:
 ```
 
 See [AI integration](docs/ai-integration.md) for configuration, testing,
-operational recovery, and remaining executor capabilities (document extraction,
-login verification, private evidence storage and remote cancellation).
+operational recovery, and A1 protocol behavior. All 17 assigned routes in main
+are implemented; [assigned endpoint completion](docs/assigned-endpoints.md)
+explains document extraction, private downloads, browser login verification,
+configuration and the required aiservice companion branch.

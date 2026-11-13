@@ -3,7 +3,7 @@ discards originals and keeps only the excerpt."""
 import uuid
 
 from sqlalchemy import CheckConstraint, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -17,6 +17,10 @@ class Import(Identity, Timestamp, Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("public.projects.id", ondelete="CASCADE"), index=True
     )
+    request_key: Mapped[str | None] = mapped_column(Text, unique=True)
+    fingerprint: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default="completed")
+    warnings: Mapped[list] = mapped_column(JSONB, server_default="[]")
     # No DB-level FK to auth.users — see the note in app/models/runs.py.
     created_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
 

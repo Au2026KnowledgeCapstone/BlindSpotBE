@@ -20,9 +20,12 @@ class Settings(BaseModel):
     dispatch_encryption_key: str | None = Field(default=None, repr=False)
     dispatch_timeout_seconds: int = Field(default=10, ge=1, le=120)
     dispatch_lease_seconds: int = Field(default=180, ge=130)
+    private_storage_dir: str | None = None
+    download_signing_key: str | None = Field(default=None, repr=False)
+    capability_timeout_seconds: int = Field(default=100, ge=10, le=180)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
-    @field_validator("environment_credential_encryption_key", "dispatch_encryption_key")
+    @field_validator("environment_credential_encryption_key", "dispatch_encryption_key", "download_signing_key")
     @classmethod
     def validate_environment_credential_encryption_key(cls, value: str | None) -> str | None:
         if value is not None:

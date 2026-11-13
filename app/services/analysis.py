@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 from app.core.config import get_settings
 from app.core.errors import ServiceError
 from app.core.urls import target_url
-from app.models import AnalysisRun, Project, Environment, Requirement, Result, AIUsage, Action
+from app.models import AnalysisRun, Project, Environment, Requirement, Result, AIUsage, Action, Evidence
 from app.models.integration import Dispatch, ResultDetail
 from app.services.resources import uid, scoped, criteria, credential_cipher, paginate
 
@@ -165,7 +165,10 @@ def result_out(db, run, row):
             "requirement_title": snapshot["title"], "verdict": row.verdict, "classification": row.classification,
             "observed_behavior": row.observed_behavior, "duration_ms": row.duration_ms,
             "criterion_assessments": [{**v, "criterion_text": texts[v["criterion_id"]]} for v in outcome.get("criterion_verdicts", [])],
-            "actions": outcome.get("actions", []), "evidence": []}
+            "actions": outcome.get("actions", []), "evidence": [
+                {"id": str(e.id), "type": e.type, "media_type": e.media_type, "observation_id": e.observation_id,
+                 "sha256": e.sha256, "captured_at": e.captured_at}
+                for e in db.scalars(select(Evidence).where(Evidence.result_id == row.id)).all()]}
 
 
 def list_results(db, context, eid, runid, page):

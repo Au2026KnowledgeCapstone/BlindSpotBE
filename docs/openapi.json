@@ -64,8 +64,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -153,8 +153,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -261,8 +261,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -350,8 +350,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -441,8 +441,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -540,8 +540,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -622,8 +622,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -721,8 +721,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -822,8 +822,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -924,8 +924,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1044,8 +1044,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1145,8 +1145,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1263,8 +1263,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1357,8 +1357,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1465,8 +1465,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1583,8 +1583,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1682,8 +1682,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1773,8 +1773,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1891,8 +1891,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1972,8 +1972,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2073,8 +2073,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2136,8 +2136,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2217,8 +2217,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2308,8 +2308,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2369,8 +2369,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2450,8 +2450,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2541,8 +2541,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2619,8 +2619,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2680,8 +2680,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2761,8 +2761,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2852,8 +2852,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3041,8 +3041,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3139,8 +3139,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3238,8 +3238,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3346,8 +3346,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3436,8 +3436,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3546,8 +3546,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3647,8 +3647,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3746,8 +3746,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3853,8 +3853,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3952,8 +3952,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4060,8 +4060,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4159,8 +4159,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4308,8 +4308,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4416,8 +4416,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4524,8 +4524,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4632,8 +4632,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4772,8 +4772,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4889,8 +4889,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4996,8 +4996,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5105,8 +5105,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5192,8 +5192,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5275,8 +5275,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5358,8 +5358,8 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5441,8 +5441,94 @@
               }
             }
           },
-          "501": {
-            "description": "Declared, not yet implemented.",
+          "503": {
+            "description": "A required service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/downloads/{token}": {
+      "get": {
+        "tags": [
+          "Evidence"
+        ],
+        "summary": "Redeem a private five-minute download grant",
+        "operationId": "download_private_object_downloads__token__get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          },
+          {
+            "name": "x-csrf-protection",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Protection"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not yours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6211,8 +6297,15 @@
             "title": "Sha256"
           },
           "captured_at": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Captured At"
           }
         },

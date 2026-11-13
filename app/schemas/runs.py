@@ -76,7 +76,7 @@ class Evidence(BaseModel):
     media_type: str | None = None
     observation_id: str | None = None
     sha256: str | None = None
-    captured_at: datetime
+    captured_at: datetime | None
 
 
 class Result(BaseModel):
