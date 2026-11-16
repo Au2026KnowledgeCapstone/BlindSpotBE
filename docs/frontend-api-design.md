@@ -1,12 +1,29 @@
 # BlindSpot API reference
 
-Use this to connect [backend/main.py](../backend/main.py) to BlindSpotFE. **These are intended behaviors:** original handlers are placeholders; added handlers return `501`. FE currently uses fixtures/local state. Database, auth validation, execution and streaming still need implementation.
+This document records the broader product API proposal. Current implemented routes and persistence boundaries are documented below; requirements, execution, evidence and streaming routes remain placeholders. Cookie auth verifies Supabase sessions; canonical tenancy routes use caller-scoped PostgREST and RLS. See [the cookie-auth API](authentication.md), [testing and rollout](testing.md), and [the security inventory](endpoint-security.md).
+
+Application paths no longer have a leading `/api` prefix. Existing clients using `/api/...` must update to canonical paths; compatibility aliases are not provided. Internal `/internal/v1` routes and framework documentation URLs are unchanged.
+
+## Implemented canonical workspace contract
+
+- `GET /projects` → `Page<Project>`; `GET /projects/{pid}` → `Project`; `POST /projects` creates a project.
+- `GET /projects/{pid}/members`, `GET/POST /projects/{pid}/invitations`, `POST /invitations/{iid}/accept`, and `GET /invitations` use caller-scoped RLS. Inbox results are pending, unexpired invitations for the verified cookie email; `accepted_at` is filtered server-side, not included in `Invitation`.
+- `GET /projects/{pid}/workspace` is a bounded first-page summary of applications, environments, saved scan requests, and existing test results. It has no cursor; use per-resource endpoints for pagination when available. Scan requests remain `queued`; they are not execution runs/results.
+- `POST /projects/{pid}/applications`, `/environments`, and `/scans` preserve current workspace writes. Environment credentials are write-only and encrypted by BE in a parameterized database transaction; environment `application_id` is nullable. Do not grant browser roles access to encrypted credential columns.
+- `GET /auth/me` provides the current user; `GET /notifications`, `GET /notifications/unread-count`, and `PATCH /notifications/{nid}` provide notifications.
+
+Workspace reads return `Page<T> = {items, next_cursor}`. Authenticated responses are no-store. Mutations require exact trusted `Origin`, JSON, and `X-CSRF-Protection: 1`.
+
+Only POST `/dashboard`, POST `/accounts`, POST `/projects/{project_name}`,
+and POST `/projects/{project_name}/flows/{flow_id}` are marked deprecated in
+OpenAPI. They remain visible and callable with their existing responses/statuses.
+Deprecation does not implement their replacements or remove any endpoint.
 
 Path shorthand:
 
-- `P` = `/api/projects/<project_id>`
-- `E` = `/api/projects/<project_id>/environments/<environment_id>`
-- `R` = `/api/projects/<project_id>/environments/<environment_id>/runs/<run_id>`
+- `P` = `/projects/<project_id>`
+- `E` = `/projects/<project_id>/environments/<environment_id>`
+- `R` = `/projects/<project_id>/environments/<environment_id>/runs/<run_id>`
 
 ## APIs and frontend callers
 
@@ -16,43 +33,43 @@ Path shorthand:
     **Purpose:** Return server health.
     **Called from / displayed in:** Monitoring; no application UI.
 
-2) **`POST /api/create-project`**
+2) **`POST /create-project`**
     **Purpose:** Create a project.
     **Called from / displayed in:** Missing creation form; refresh [Projects][projects] and header selector.
 
-3) **`POST /api/dashboard`**
+3) **`POST /dashboard`**
     **Purpose:** Legacy placeholder; preserve during transition.
     **Called from / displayed in:** Use GET dashboard below for Overview.
 
-4) **`POST /api/accounts`**
+4) **`POST /accounts`**
     **Purpose:** Legacy account placeholder; behavior undefined.
     **Called from / displayed in:** No caller; login/signup already use Supabase.
 
-5) **`POST /api/environments`**
+5) **`POST /environments`**
     **Purpose:** Save environment; return stable ID and configuration.
     **Called from / displayed in:** [EnvironmentCards → New environment → Create][env].
 
-6) **`POST /api/projects/<project_name>`**
+6) **`POST /projects/<project_name>`**
     **Purpose:** Legacy flow-list placeholder.
     **Called from / displayed in:** Use GET `P/flows` instead.
 
-7) **`POST /api/projects/<project_name>/flows/<flow_id>`**
+7) **`POST /projects/<project_name>/flows/<flow_id>`**
     **Purpose:** Legacy flow-detail placeholder.
     **Called from / displayed in:** Use GET flow detail instead.
 
-8) **`POST /api/projects/<project_name>/run-test`**
+8) **`POST /projects/<project_name>/run-test`**
     **Purpose:** Save and queue a run of an existing flow; return new ID/number/status.
     **Called from / displayed in:** Missing Run button on existing flow; navigate to run detail.
 
-9) **`GET /api/projects`**
+9) **`GET /projects`**
     **Purpose:** List projects accessible to the user: ID and display name.
     **Called from / displayed in:** [Projects page][projects] and [AppShell project dropdown][shell].
 
-10) **`GET /api/environments?project_id=...`**
+10) **`GET /environments?project_id=...`**
     **Purpose:** List the project's environments.
     **Called from / displayed in:** [Header environment dropdown][shell] and [environment cards][env].
 
-11) **`GET /api/environments/<environment_id>`**
+11) **`GET /environments/<environment_id>`**
     **Purpose:** Return name, kind, base URL, note, credential reference and policy.
     **Called from / displayed in:** [Environment cards/details][env]; full details UI missing.
 
@@ -72,7 +89,7 @@ Path shorthand:
     **Purpose:** Return configured steps/settings, revision and recent runs.
     **Called from / displayed in:** [FlowDetailContent → Configured Steps][flow]; settings/history sections need adding.
 
-16) **`GET /api/dashboard?project_id=...&environment_id=...`**
+16) **`GET /dashboard?project_id=...&environment_id=...`**
     **Purpose:** Return execution counts, pass rate, weekly AI cost, seven-day trend, active regressions and latest five runs.
     **Called from / displayed in:** Overview: [OverviewCounters][counts], [RegressionsFirst][regressions], [RecentRunsTable][recent]. Trend chart missing.
 
@@ -128,15 +145,15 @@ Path shorthand:
     **Purpose:** Save comment text; derive author from login.
     **Called from / displayed in:** [DiscussionTab → Post comment][discussion].
 
-30) **`GET /api/notifications`**
+30) **`GET /notifications`**
     **Purpose:** List the user's notifications, with pagination/read filters.
     **Called from / displayed in:** Missing notification dropdown/list in app header.
 
-31) **`GET /api/notifications/unread-count`**
+31) **`GET /notifications/unread-count`**
     **Purpose:** Return unread count for the user.
     **Called from / displayed in:** Missing notification badge.
 
-32) **`PATCH /api/notifications/<notification_id>`**
+32) **`PATCH /notifications/<notification_id>`**
     **Purpose:** Mark the user's notification read.
     **Called from / displayed in:** Missing notification item action.
 
@@ -144,7 +161,7 @@ Path shorthand:
     **Purpose:** Stream ordered live run/step/action/screenshot/analysis/completion updates.
     **Called from / displayed in:** [useLiveRunEvents][live] → [StreamStatusBar][stream] and run detail refreshes.
 
-34) **`GET /api/events`**
+34) **`GET /events`**
     **Purpose:** Stream user notifications and run/dashboard/cost update signals.
     **Called from / displayed in:** Missing application-level subscription in [AppShell][shell].
 
@@ -192,8 +209,8 @@ Comment body: `{"text":"..."}` → **201** saved comment. Notification PATCH: `{
 
 ## Shared implementation rules
 
-1) **Access**
-    FE sends its Supabase bearer token. BE validates it and checks user → project → environment → run ownership, including every child/file. Internal callbacks use separate job-scoped service credentials.
+1) **Access (future feature integration)**
+    Canonical tenancy routes require a Supabase-verified backend cookie session; mutations enforce CSRF. PostgREST forwards only that verified cookie token and the publishable key, so RLS remains authoritative. Never send Supabase bearer tokens from FE or use a service-role key. Run/resource authorization and worker callbacks remain future scope.
 
 2) **Persistence**
     use Project → Environment → Run → run details foreign keys. Flows belong to projects; runs keep a frozen flow revision/configuration. No database/models/migrations exist yet; PostgreSQL + SQLAlchemy/Alembic is the proposed foundation.
@@ -236,13 +253,13 @@ Comment body: `{"text":"..."}` → **201** saved comment. Notification PATCH: `{
 
 6) Add missing start-test, notification and trend UI; wire existing rerun, download and comment controls.
 
-## Before implementation
+## Remaining implementation scope
 
-1) Keep `app.run()` after all route declarations. Preserve original endpoints and coordinate legacy project-name → ID changes.
+1) Requirements, imports, execution runs/results, evidence, AI usage, streaming and internal worker callbacks still return explicit 501 responses.
 
-2) Agree the worker/AI protocol, actual flow/data source and Supabase/database/storage/credential configuration.
+2) Agree the worker/AI protocol, actual flow/data source and storage/credential configuration before implementing those routes.
 
-3) Build persistence/auth first, then execution/results, then costs/reporting/notifications and FE wiring.
+3) Preserve startup after all FastAPI route declarations; coordinate remaining legacy project-name → ID changes.
 
 New-flow creation, planning and heal APIs are outside this work.
 
@@ -265,7 +282,7 @@ New-flow creation, planning and heal APIs are outside this work.
 [console]: <../../BlindSpotFE/src/app/(app)/projects/[projectId]/runs/[runId]/console-tab.tsx>
 [network]: <../../BlindSpotFE/src/app/(app)/projects/[projectId]/runs/[runId]/network-tab.tsx>
 [discussion]: <../../BlindSpotFE/src/app/(app)/projects/[projectId]/runs/[runId]/discussion-tab.tsx>
-[live]: ../../BlindSpotFE/src/features/runs/api/use-live-run-events.ts
+[live]: ../../BlindSpotFE/src/features/runs/use-live-run-events.ts
 [stream]: <../../BlindSpotFE/src/app/(app)/projects/[projectId]/runs/[runId]/stream-status-bar.tsx>
-[schema]: ../../BlindSpotFE/src/features/runs/api/run.schema.ts
+[schema]: ../../BlindSpotFE/src/features/runs/run.schema.ts
 [detail]: <../../BlindSpotFE/src/app/(app)/projects/[projectId]/runs/[runId]/run-detail-content.tsx>

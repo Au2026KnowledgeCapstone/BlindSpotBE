@@ -1,9 +1,0 @@
-runtime: python314
-service: default
-
-entrypoint: gunicorn --bind :$PORT backend.main:app
-
-instance_class: F1
-
-automatic_scaling:
-  max_instances: 2

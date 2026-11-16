@@ -1,118 +1,106 @@
 # BlindSpot Backend
 
-Initialize the Python environment and install dependencies:
+FastAPI service. Every route is declared in `main.py` at the repo root;
+handlers stay thin and delegate to `app/services/`.
+
+## Local development
+
+Install the project and its test extras from `pyproject.toml`:
 
 ```bash
-make initialize
+uv venv .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt
 ```
 
-Start the Flask development server at http://127.0.0.1:8000:
+`requirements-dev.txt` is a compatibility entry for editable `.[test]`; the
+optional test extra includes pytest, pytest-asyncio, and `psycopg[binary]`.
+
+Start the development server at http://127.0.0.1:8000:
 
 ```bash
 make run
 ```
 
-To use the environment in your shell:
+`make run` initializes the environment if Uvicorn is missing. Use
+`PORT=8080 make run` to select a different port.
+
+To use the environment directly in your shell:
 
 ```bash
 source .venv/bin/activate
 ```
 
-## Swagger API documentation
-
-After `make run`, open http://127.0.0.1:8000/docs for Swagger UI and **Try it out**.
-The local server defaults to port 8000 to avoid macOS AirPlay using port 5000.
-Use `PORT=8080 make run` to choose another port. `make run` initializes the
-environment automatically if it is missing.
-
-The OpenAPI 3.0 document is served at `/openapi.json` and maintained in
-[`docs/openapi.json`](docs/openapi.json). It covers all 37 application operations,
-including legacy POST handlers and internal service callbacks. The UI uses the
-current backend origin, so the same links work after deployment.
-
-The documentation describes current placeholder responses: newer handlers return
-HTTP 501, while legacy handlers echo data or return placeholder success. Planned
-query parameters and headers are labeled accordingly; authentication and SSE are
-not implemented. See [the intended API contracts](docs/frontend-api-design.md).
-Legacy `project_name` POST paths share an OpenAPI `project_id` path parameter with
-equivalent GET paths; those POST handlers still interpret it as a project name.
-
-Swagger UI loads pinned JavaScript/CSS from unpkg and requires internet access.
-Its setup follows the [official Swagger UI installation guide](https://swagger.io/docs/open-source-tools/swagger-ui/usage/installation/).
-Update the specification when changing handlers. Run `python -m unittest discover -s tests -v`
-to check route coverage and current response examples alongside CORS behavior.
-
-## Cloud Run frontend connection
-
-- Backend: https://blindspotbe-git-158196513287.europe-west1.run.app
-- Frontend: https://blindspotfe-158196513287.europe-west1.run.app
-
-Set `CORS_ALLOWED_ORIGINS` on the backend to the exact frontend origin above
-(no trailing slash). Comma-separate additional origins when needed. An empty
-setting grants no browser CORS access. CORS does not validate Supabase users;
-authentication and project ownership still need implementation.
-
-Set `NEXT_PUBLIC_API_BASE_URL` to the backend URL **during the frontend build**,
-then rebuild/redeploy the frontend. Runtime-only changes do not update a
-Next.js browser bundle. The frontend has a read-only `/dev/integration` page:
-click **Run connection checks** to test real browser requests and preflight.
-Health should pass; projects currently reports HTTP 501 because it is a stub.
-This verifies connectivity, not completed application-data/auth integration.
-
-Run backend CORS checks locally:
+Run the full test suite against the isolated local PostgreSQL/PostgREST
+fixtures (the integration tests create and drop disposable databases):
 
 ```bash
-python -m unittest discover -s tests -v
+export POSTGRES_TEST_ROOT=/home/nala/quoroum-backend/data/ops/mohagany-test-postgres
+export POSTGREST_BIN=/home/nala/quoroum-backend/data/ops/mohagany-reviewed-capstone/postgrest
+export DATABASE_URL='postgresql+psycopg://nala@/postgres?host=/home/nala/quoroum-backend/data/ops/mohagany-test-postgres/socket&port=55432'
+.venv/bin/python -m pytest -q
 ```
 
-## Cloud Run continuous deployment (Google Cloud Buildpacks)
+The local PostgreSQL instance must be running with the test-only bootstrap
+support installed; PostgREST must be available at `POSTGREST_BIN`. The database
+and PostgREST integration tests create and drop disposable databases. Never
+point `DATABASE_URL` or `SUPABASE_DATABASE_URL` at production. The inherited B1
+migration tests require a separate disposable PostgreSQL database configured in
+`DATABASE_URL` and run Alembic against that local database; keep them separate
+from the auth, workspace API, and infrastructure integration checks above.
 
-Build from the repository root, where `requirements.txt`, `.python-version`
-and `Procfile` live. Python 3.13 is selected by `.python-version`; Gunicorn
-imports the existing Flask application as `backend.main:app`.
+## Layout
 
-Production command (run from the repository root):
+```
+BlindSpotBE/
+├── main.py              # every route, at the repo root
+├── app/
+│   ├── core/             # config, db session, logging, auth
+│   ├── services/         # all business logic
+│   ├── models/           # SQLAlchemy models + Alembic
+│   └── schemas/          # Pydantic request/response models
+├── tests/
+├── docs/
+└── pyproject.toml
+```
+
+## Configuration
+
+Copy `.env.example` to `.env` and fill in values for local development. Never
+commit `.env` or any real secrets.
+
+## Authentication
+
+BE owns the full login/session lifecycle — the frontend never holds a token
+or talks to Supabase directly; BE issues httpOnly cookies and verifies every
+one of them against Supabase. There is no local dev bypass: local dev needs
+a real Supabase project and a real login through `/auth/login`. See
+`docs/authentication.md` for setup and the full flow.
+
+
+## API Reference
+The API is fully typed and documented. Run the server and visit `/docs` for
+the OpenAPI spec and interactive Swagger UI. Visit `/redoc` for ReDoc.
+
+http://localhost:8000/docs#/
+
+## AI integration
+
+Requirements, environments, runs, durable job dispatch, callback ingestion,
+usage reconciliation and replayable run events are implemented. Start the
+separate dispatcher alongside the API:
 
 ```bash
-gunicorn --bind 0.0.0.0:$PORT --access-logfile - --error-logfile - backend.main:app
+.venv/bin/python -m app.services.dispatch
 ```
 
-Cloud Run supplies `PORT` automatically. The backend reads `AI_SERVICE_URL` and
-`AI_API_KEY` from the runtime environment. Configure these for the intended AI
-service integration (store the API key as a secret); the current placeholder
-handlers do not use them and they are not required for startup. The existing `GET /` endpoint
-returns HTTP 200 with `{"status":"ok","message":"API is running"}` and can be
-used for health checks. Local development still uses `make run`.
+See [AI integration](docs/ai-integration.md) for configuration, testing,
+operational recovery, and A1 protocol behavior. All 17 assigned routes in main
+are implemented; [assigned endpoint completion](docs/assigned-endpoints.md)
+explains document extraction, private downloads, browser login verification,
+configuration and the required aiservice companion branch.
 
-For a clean local production smoke test:
+## Historical planning
 
-```bash
-python3.13 -m venv /tmp/blindspotbe-check
-/tmp/blindspotbe-check/bin/python -m pip install -r requirements.txt
-export PORT=8080
-/tmp/blindspotbe-check/bin/gunicorn --bind 0.0.0.0:$PORT --access-logfile - --error-logfile - backend.main:app
-# In another terminal: curl --fail http://127.0.0.1:8080/
-```
-
-In the existing GitHub trigger, keep the build context at the repository root
-and the build method set to Google Cloud Buildpacks. Any existing build-time
-`GOOGLE_ENTRYPOINT` or `GOOGLE_PYTHON_VERSION` overrides must be removed or
-aligned with the command above and Python `3.13.x`. Leave Cloud Run container
-command/argument overrides empty so the generated image entrypoint is used.
-`app.yaml` is an App Engine configuration and is not used by this deployment.
-This Python backend needs no `package.json`; do not include the local Node
-startup experiment referencing `server.js` in the deployment commit.
-
-Commit only the relevant deployment files, then push the branch configured in
-the existing GitHub trigger:
-
-```bash
-git add Procfile .python-version requirements.txt .gitignore README.md
-git diff --cached
-git commit -m "Configure Python buildpack startup for Cloud Run"
-git push origin HEAD
-```
-
-Verify the current branch matches the trigger branch before pushing. No Dockerfile
-or additional Cloud Build workflow is required. Never commit `.env` files or
-credentials; configure any future secrets through Cloud Run's runtime settings.
+The documents in `docs/timebox4-planning/` describe the October 28, 2026
+assessment before the FastAPI migration. They are historical planning notes;
+use the current implementation and authentication documentation for current behavior.
