@@ -6,7 +6,7 @@ Initialize the Python environment and install dependencies:
 make initialize
 ```
 
-Start the Flask development server at http://127.0.0.1:5000:
+Start the Flask development server at http://127.0.0.1:8000:
 
 ```bash
 make run
@@ -16,6 +16,53 @@ To use the environment in your shell:
 
 ```bash
 source .venv/bin/activate
+```
+
+## Swagger API documentation
+
+After `make run`, open http://127.0.0.1:8000/docs for Swagger UI and **Try it out**.
+The local server defaults to port 8000 to avoid macOS AirPlay using port 5000.
+Use `PORT=8080 make run` to choose another port. `make run` initializes the
+environment automatically if it is missing.
+
+The OpenAPI 3.0 document is served at `/openapi.json` and maintained in
+[`docs/openapi.json`](docs/openapi.json). It covers all 37 application operations,
+including legacy POST handlers and internal service callbacks. The UI uses the
+current backend origin, so the same links work after deployment.
+
+The documentation describes current placeholder responses: newer handlers return
+HTTP 501, while legacy handlers echo data or return placeholder success. Planned
+query parameters and headers are labeled accordingly; authentication and SSE are
+not implemented. See [the intended API contracts](docs/frontend-api-design.md).
+Legacy `project_name` POST paths share an OpenAPI `project_id` path parameter with
+equivalent GET paths; those POST handlers still interpret it as a project name.
+
+Swagger UI loads pinned JavaScript/CSS from unpkg and requires internet access.
+Its setup follows the [official Swagger UI installation guide](https://swagger.io/docs/open-source-tools/swagger-ui/usage/installation/).
+Update the specification when changing handlers. Run `python -m unittest discover -s tests -v`
+to check route coverage and current response examples alongside CORS behavior.
+
+## Cloud Run frontend connection
+
+- Backend: https://blindspotbe-git-158196513287.europe-west1.run.app
+- Frontend: https://blindspotfe-158196513287.europe-west1.run.app
+
+Set `CORS_ALLOWED_ORIGINS` on the backend to the exact frontend origin above
+(no trailing slash). Comma-separate additional origins when needed. An empty
+setting grants no browser CORS access. CORS does not validate Supabase users;
+authentication and project ownership still need implementation.
+
+Set `NEXT_PUBLIC_API_BASE_URL` to the backend URL **during the frontend build**,
+then rebuild/redeploy the frontend. Runtime-only changes do not update a
+Next.js browser bundle. The frontend has a read-only `/dev/integration` page:
+click **Run connection checks** to test real browser requests and preflight.
+Health should pass; projects currently reports HTTP 501 because it is a stub.
+This verifies connectivity, not completed application-data/auth integration.
+
+Run backend CORS checks locally:
+
+```bash
+python -m unittest discover -s tests -v
 ```
 
 ## Cloud Run continuous deployment (Google Cloud Buildpacks)

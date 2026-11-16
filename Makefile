@@ -6,5 +6,8 @@ initialize:
 	$(PYTHON) -m venv $(VENV)
 	$(VENV)/bin/python -m pip install -r requirements.txt
 
-run:
+run: $(VENV)/bin/python
 	$(VENV)/bin/python backend/main.py
+
+$(VENV)/bin/python:
+	$(MAKE) initialize

@@ -1,0 +1,9 @@
+Notificaiton queue after running test
+Have AI service save the AI costs and return to BE and then to FE dashboard
+Send last 5 runs to FE, make a run number for each run that is stored in the dashboard
+Project -> Environment -> Run details, make sure the DB is setup in that order
+Ability to make a new Environment
+
+IGNORE:
+Heals
+New flow in the Flows page

@@ -1,0 +1,3523 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "BlindSpot API",
+    "version": "0.1.0",
+    "description": "Current Flask API. Health is implemented; legacy POST operations return placeholder responses and newer operations return HTTP 501. Authentication, ownership checks, persistence, execution, and SSE are not implemented. Parameters marked as planned describe the intended contract and are not currently validated. See docs/frontend-api-design.md."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current backend"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "health_check",
+        "summary": "Health check",
+        "tags": [
+          "Health"
+        ],
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "status"
+                  ]
+                },
+                "example": {
+                  "message": "API is running",
+                  "status": "ok"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/create-project": {
+      "post": {
+        "operationId": "create_project",
+        "summary": "Create project",
+        "tags": [
+          "Legacy placeholders"
+        ],
+        "description": "Legacy placeholder; no data is persisted. Process the data and generate the create-project response",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Current response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data_received": {
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data_received",
+                    "message"
+                  ]
+                },
+                "example": {
+                  "data_received": {},
+                  "message": "Project created successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard": {
+      "post": {
+        "operationId": "dashboard",
+        "summary": "Dashboard",
+        "tags": [
+          "Legacy placeholders"
+        ],
+        "description": "Legacy placeholder; no data is persisted. Process the data and generate the dashboard response",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data_received": {
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data_received",
+                    "message"
+                  ]
+                },
+                "example": {
+                  "data_received": {},
+                  "message": "Dashboard data processed successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {}
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "dashboard_summary",
+        "summary": "Dashboard summary",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Calculate full-period metrics/costs/regressions and fetch the latest five runs separately. Required query: project_id, environment_id. Optional: timezone, as_of. Aggregate the full reporting period independently of latest_runs.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "environment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "timezone",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "active_regression_count": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "active_regressions": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "active_regressions_next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "as_of": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "environment_id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "execution_period": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "latest_runs": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "latest_runs_next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "pass_rate": {
+                      "type": "object",
+                      "properties": {
+                        "denominator": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "passed_count": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "value": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        }
+                      },
+                      "required": [
+                        "denominator",
+                        "passed_count",
+                        "value"
+                      ]
+                    },
+                    "project_id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "terminal_execution_count": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "timezone": {
+                      "type": "string"
+                    },
+                    "total_execution_count": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "trend": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "weekly_ai_cost": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "pending_run_count": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "period_end_exclusive": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "period_start": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "unfinalized_run_count": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "currency",
+                        "pending_run_count",
+                        "period_end_exclusive",
+                        "period_start",
+                        "status",
+                        "unfinalized_run_count"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "active_regression_count",
+                    "active_regressions",
+                    "active_regressions_next_cursor",
+                    "as_of",
+                    "environment_id",
+                    "execution_period",
+                    "latest_runs",
+                    "latest_runs_next_cursor",
+                    "pass_rate",
+                    "project_id",
+                    "terminal_execution_count",
+                    "timezone",
+                    "total_execution_count",
+                    "trend",
+                    "weekly_ai_cost"
+                  ]
+                },
+                "example": {
+                  "active_regression_count": null,
+                  "active_regressions": [],
+                  "active_regressions_next_cursor": null,
+                  "as_of": null,
+                  "environment_id": null,
+                  "execution_period": null,
+                  "latest_runs": [],
+                  "latest_runs_next_cursor": null,
+                  "pass_rate": {
+                    "denominator": null,
+                    "passed_count": null,
+                    "value": null
+                  },
+                  "project_id": null,
+                  "terminal_execution_count": null,
+                  "timezone": "UTC",
+                  "total_execution_count": null,
+                  "trend": [],
+                  "weekly_ai_cost": {
+                    "amount": null,
+                    "currency": "USD",
+                    "pending_run_count": null,
+                    "period_end_exclusive": null,
+                    "period_start": null,
+                    "status": "pending",
+                    "unfinalized_run_count": null
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts": {
+      "post": {
+        "operationId": "accounts",
+        "summary": "Accounts",
+        "tags": [
+          "Legacy placeholders"
+        ],
+        "description": "Legacy placeholder; no data is persisted. Process the data and generate the accounts response",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data_received": {
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data_received",
+                    "message"
+                  ]
+                },
+                "example": {
+                  "data_received": {},
+                  "message": "Accounts data processed successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/environments": {
+      "post": {
+        "operationId": "environments",
+        "summary": "Environments",
+        "tags": [
+          "Legacy placeholders"
+        ],
+        "description": "Legacy placeholder; no data is persisted. Process the data and generate the environments response",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data_received": {
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data_received",
+                    "message"
+                  ]
+                },
+                "example": {
+                  "data_received": {},
+                  "message": "Environments data processed successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {}
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "list_environments",
+        "summary": "List environments",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Check project access and fetch its environments with stable IDs and policies. Required query: project_id. Optional: limit, cursor.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}": {
+      "post": {
+        "operationId": "projects_names",
+        "summary": "Projects names",
+        "tags": [
+          "Legacy placeholders"
+        ],
+        "description": "Legacy placeholder; no data is persisted. Process the data and generate the projects/flows response",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Legacy POST handlers interpret this as project_name."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data_received": {
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "project_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data_received",
+                    "message",
+                    "project_name"
+                  ]
+                },
+                "example": {
+                  "data_received": {},
+                  "message": "Projects flows data processed successfully",
+                  "project_name": "example-project_name"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/flows/{flow_id}": {
+      "post": {
+        "operationId": "projects_flows",
+        "summary": "Projects flows",
+        "tags": [
+          "Legacy placeholders"
+        ],
+        "description": "Legacy placeholder; no data is persisted. Process the data and generate the projects/flows response",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Legacy POST handlers interpret this as project_name."
+          },
+          {
+            "name": "flow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "flow id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data_received": {
+                      "type": "object"
+                    },
+                    "flow_id": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "project_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data_received",
+                    "flow_id",
+                    "message",
+                    "project_name"
+                  ]
+                },
+                "example": {
+                  "data_received": {},
+                  "flow_id": "example-flow_id",
+                  "message": "Projects flows data processed successfully",
+                  "project_name": "example-project_name"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {}
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "flow_details",
+        "summary": "Flow details",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Load configured flow steps/settings and recent runs for the selected environment. Required query: environment_id. Recent runs are scoped to that environment.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "flow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "flow id"
+          },
+          {
+            "name": "environment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configuration": {
+                      "type": "object",
+                      "properties": {
+                        "settings": {
+                          "type": "object"
+                        },
+                        "steps": {
+                          "type": "array",
+                          "items": {}
+                        }
+                      },
+                      "required": [
+                        "settings",
+                        "steps"
+                      ]
+                    },
+                    "current_revision_id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "history_url": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "last_run": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "name": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "project_id": {
+                      "type": "string"
+                    },
+                    "recent_runs": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "runnable": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "configuration",
+                    "current_revision_id",
+                    "history_url",
+                    "id",
+                    "last_run",
+                    "name",
+                    "project_id",
+                    "recent_runs",
+                    "runnable"
+                  ]
+                },
+                "example": {
+                  "configuration": {
+                    "settings": {},
+                    "steps": []
+                  },
+                  "current_revision_id": null,
+                  "history_url": null,
+                  "id": "example-flow_id",
+                  "last_run": null,
+                  "name": null,
+                  "project_id": "example-project_id",
+                  "recent_runs": [],
+                  "runnable": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/run-test": {
+      "post": {
+        "operationId": "run_test",
+        "summary": "Run test",
+        "tags": [
+          "Legacy placeholders"
+        ],
+        "description": "Legacy placeholder; no data is persisted. Process the data and generate the run-test response",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Legacy POST handlers interpret this as project_name."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "project_name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "project_name",
+                    "status"
+                  ]
+                },
+                "example": {
+                  "project_name": "example-project_name",
+                  "status": 1
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "operationId": "list_projects",
+        "summary": "List projects",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch the authenticated user's accessible projects and return a paginated list. Query: limit, cursor. Only projects accessible to the authenticated user.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/environments/{environment_id}": {
+      "get": {
+        "operationId": "environment_details",
+        "summary": "Environment details",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Load the authorized environment and its policy; return credential references only.",
+        "parameters": [
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "base_url": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "created_at": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "credential_ref": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "execution_policy": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "name": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "note": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "project_id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "base_url",
+                    "created_at",
+                    "credential_ref",
+                    "execution_policy",
+                    "id",
+                    "kind",
+                    "name",
+                    "note",
+                    "project_id"
+                  ]
+                },
+                "example": {
+                  "base_url": null,
+                  "created_at": null,
+                  "credential_ref": null,
+                  "execution_policy": null,
+                  "id": "example-environment_id",
+                  "kind": null,
+                  "name": null,
+                  "note": null,
+                  "project_id": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/credential-references": {
+      "get": {
+        "operationId": "list_credential_references",
+        "summary": "List credential references",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch this project's authorized credential IDs/names without exposing secrets. Item: id, name, kind. Never include secret values or storage locators.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "project_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "project_id"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "project_id": "example-project_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/execution-policies": {
+      "get": {
+        "operationId": "list_execution_policies",
+        "summary": "List execution policies",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch this project's policy revisions, allowed modes and execution limits. Item: id, name, revision, allowed_execution_modes, execution limits.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "project_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "project_id"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "project_id": "example-project_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/flows": {
+      "get": {
+        "operationId": "list_flows",
+        "summary": "List flows",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch project flows with environment-scoped last-run status/time and recent history. Required query: environment_id. Optional: limit, cursor. Item: id, project_id, name, current_revision_id, runnable, last_run.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "project_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "project_id"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "project_id": "example-project_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs": {
+      "get": {
+        "operationId": "list_runs",
+        "summary": "List runs",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Query persisted runs with filters, newest-first ordering and cursor pagination (default five). Query: limit (default 5), cursor, flow_id, status, created_from, created_to. Order: created_at DESC, id DESC. Preserve older runs; cursor pagination.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 5
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "flow_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "created_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "environment_id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "project_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "environment_id",
+                    "items",
+                    "next_cursor",
+                    "project_id"
+                  ]
+                },
+                "example": {
+                  "environment_id": "example-environment_id",
+                  "items": [],
+                  "next_cursor": null,
+                  "project_id": "example-project_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}": {
+      "get": {
+        "operationId": "run_details",
+        "summary": "Run details",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Load the actual run, saved configuration, cost and real passing/failing baseline references.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "action_count": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "ai_cost": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "currency",
+                        "status"
+                      ]
+                    },
+                    "branch": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "commit_sha": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "created_at": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "duration_ms": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "environment": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "name": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "name"
+                      ]
+                    },
+                    "execution_mode": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "execution_snapshot": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "finished_at": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "first_failing_run": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "flow": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "name": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "revision_id": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "revision_id"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "last_event_id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "last_passing_run": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "primary_failure_id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "project": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
+                    },
+                    "pull_request": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "rerun_of_run_id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_number": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "started_at": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "status": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "trigger": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "version": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "action_count",
+                    "ai_cost",
+                    "branch",
+                    "commit_sha",
+                    "created_at",
+                    "duration_ms",
+                    "environment",
+                    "execution_mode",
+                    "execution_snapshot",
+                    "finished_at",
+                    "first_failing_run",
+                    "flow",
+                    "id",
+                    "last_event_id",
+                    "last_passing_run",
+                    "primary_failure_id",
+                    "project",
+                    "pull_request",
+                    "rerun_of_run_id",
+                    "run_number",
+                    "started_at",
+                    "status",
+                    "trigger",
+                    "version"
+                  ]
+                },
+                "example": {
+                  "action_count": null,
+                  "ai_cost": {
+                    "amount": null,
+                    "currency": "USD",
+                    "status": "pending"
+                  },
+                  "branch": null,
+                  "commit_sha": null,
+                  "created_at": null,
+                  "duration_ms": null,
+                  "environment": {
+                    "id": "example-environment_id",
+                    "kind": null,
+                    "name": null
+                  },
+                  "execution_mode": null,
+                  "execution_snapshot": null,
+                  "finished_at": null,
+                  "first_failing_run": null,
+                  "flow": {
+                    "id": null,
+                    "name": null,
+                    "revision_id": null
+                  },
+                  "id": "example-run_id",
+                  "last_event_id": null,
+                  "last_passing_run": null,
+                  "primary_failure_id": null,
+                  "project": {
+                    "id": "example-project_id",
+                    "name": null
+                  },
+                  "pull_request": null,
+                  "rerun_of_run_id": null,
+                  "run_number": null,
+                  "started_at": null,
+                  "status": null,
+                  "trigger": null,
+                  "version": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/reruns": {
+      "post": {
+        "operationId": "rerun_test",
+        "summary": "Rerun test",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Validate source/access, allocate a new run number and atomically save/enqueue an idempotent rerun. Body: {} or {\"configuration_source\": \"latest_flow\"}. Default: original configuration. Require terminal source + Idempotency-Key. Once implemented: return 202 with a NEW persisted run ID and run_number.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required by the planned contract; currently not enforced."
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data_received": {
+                      "type": "object"
+                    },
+                    "environment_id": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "project_id": {
+                      "type": "string"
+                    },
+                    "rerun_of_run_id": {
+                      "type": "string"
+                    },
+                    "run_number": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "status": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "data_received",
+                    "environment_id",
+                    "id",
+                    "project_id",
+                    "rerun_of_run_id",
+                    "run_number",
+                    "status"
+                  ]
+                },
+                "example": {
+                  "data_received": {},
+                  "environment_id": "example-environment_id",
+                  "id": null,
+                  "project_id": "example-project_id",
+                  "rerun_of_run_id": "example-run_id",
+                  "run_number": null,
+                  "status": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/steps": {
+      "get": {
+        "operationId": "run_steps",
+        "summary": "Run steps",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch this run's executed steps and results in execution order with pagination. Query: limit, cursor. Ordered by position, id. Item: id, run_id, configured_step_id, position, name, status, timestamps.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/steps/{step_id}/actions": {
+      "get": {
+        "operationId": "run_actions",
+        "summary": "Run actions",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Verify step ownership and fetch ordered actions with click metadata and screenshot links. Query: limit, cursor. Ordered by run-wide action sequence. Item includes status/times, click coordinates/viewport, before/after artifact IDs.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "step id"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "step_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "run_id",
+                    "step_id"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "run_id": "example-run_id",
+                  "step_id": "example-step_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/failures": {
+      "get": {
+        "operationId": "run_failures",
+        "summary": "Run failures",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Load saved failure analysis, expected/observed results and linked evidence for this run. Item: expected, observed, classification, likely_cause, suggested_next_steps, analysis_status, evidence_artifact_ids and actual baseline run references.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/artifacts": {
+      "get": {
+        "operationId": "run_artifacts",
+        "summary": "Run artifacts",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch authorized artifact metadata and step/action links; apply filters and pagination. Query: type, step_id, action_id, limit, cursor. Screenshots, before/after images, console/network logs and trace metadata.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "step_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "action_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/artifacts/{artifact_id}/download": {
+      "post": {
+        "operationId": "artifact_download",
+        "summary": "Artifact download",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Verify artifact/run access and availability, then issue a five-minute signed download URL. Authorize ownership, then issue a short-lived private object download URL.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "artifact id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "artifact_id": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "filename": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "url": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "artifact_id",
+                    "expires_at",
+                    "filename",
+                    "url"
+                  ]
+                },
+                "example": {
+                  "artifact_id": "example-artifact_id",
+                  "expires_at": null,
+                  "filename": null,
+                  "url": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/logs": {
+      "get": {
+        "operationId": "run_logs",
+        "summary": "Run logs",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch filtered, paginated console/network logs with redaction and response size limits. Query: kind (console/network), artifact_id, level, from, to, limit, cursor. Paginate redacted entries; do not embed large logs in run detail.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "artifact_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "run_id",
+                    "truncated"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "run_id": "example-run_id",
+                  "truncated": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/ai-usage": {
+      "get": {
+        "operationId": "run_ai_usage",
+        "summary": "Run ai usage",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch usage records and calculate the full run total with pending/partial/final cost state. Query: limit, cursor. Total covers all run usage, not just this page.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "total": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "nullable": true,
+                          "description": "Unavailable in the current placeholder response."
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "currency",
+                        "status"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "run_id",
+                    "total"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "run_id": "example-run_id",
+                  "total": {
+                    "amount": null,
+                    "currency": "USD",
+                    "status": "pending"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/regressions": {
+      "get": {
+        "operationId": "list_regressions",
+        "summary": "List regressions",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch real environment regression records with baseline references and pagination. Query: state (default active), limit, cursor. Return real failure metadata.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/comments": {
+      "get": {
+        "operationId": "list_run_comments",
+        "summary": "List run comments",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch persisted run comments with author display names and timestamps in order. Query: limit, cursor. Item: id, text, author {id, display_name}, created_at.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null,
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_run_comment",
+        "summary": "Create run comment",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Validate text/access and idempotently save a comment using the authenticated author. Body: {\"text\": \"...\"}. Derive author from session; require Idempotency-Key. Once persisted: return 201 with comment ID, author and timestamp.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required by the planned contract; currently not enforced."
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "author": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "created_at": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "data_received": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "text"
+                      ]
+                    },
+                    "id": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "author",
+                    "created_at",
+                    "data_received",
+                    "id",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "author": null,
+                  "created_at": null,
+                  "data_received": {
+                    "text": "Please review this run."
+                  },
+                  "id": null,
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "text": "Please review this run."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "operationId": "list_notifications",
+        "summary": "List notifications",
+        "tags": [
+          "Notifications"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Fetch this user's accessible notifications with read filters and pagination. Query: read, project_id, environment_id, limit, cursor. Session recipient only. Item: id, recipient_id, run_id/number, project/environment, type, title, message, created_at, read_at. Completion retries must not duplicate rows.",
+        "parameters": [
+          {
+            "name": "read",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "environment_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                },
+                "example": {
+                  "items": [],
+                  "next_cursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/unread-count": {
+      "get": {
+        "operationId": "notification_unread_count",
+        "summary": "Notification unread count",
+        "tags": [
+          "Notifications"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Count all accessible unread notifications for the authenticated user and filters. Optional query: project_id, environment_id. Count all accessible unread rows.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "environment_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "unread_count": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "unread_count"
+                  ]
+                },
+                "example": {
+                  "unread_count": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/{notification_id}": {
+      "patch": {
+        "operationId": "mark_notification_read",
+        "summary": "Mark notification read",
+        "tags": [
+          "Notifications"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Verify recipient/access and persist the first read timestamp without changing it on retries. Body: {\"read\": true}. Session recipient only; preserve first read timestamp.",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "notification id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data_received": {
+                      "type": "object",
+                      "properties": {
+                        "read": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "read"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "read_at": {
+                      "nullable": true,
+                      "description": "Unavailable in the current placeholder response."
+                    }
+                  },
+                  "required": [
+                    "data_received",
+                    "id",
+                    "read_at"
+                  ]
+                },
+                "example": {
+                  "data_received": {
+                    "read": true
+                  },
+                  "id": "example-notification_id",
+                  "read_at": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json (Flask HTML error response)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "JSON payload. Fields are not validated by the current placeholder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "example": {
+                "read": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/environments/{environment_id}/runs/{run_id}/events": {
+      "get": {
+        "operationId": "run_events",
+        "summary": "Run events",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: text/event-stream with durable per-run IDs and Last-Event-ID/after. Events: run/step/action, screenshot, analysis, completion, usage/artifacts. Persist before publish; replay ordered events; FE deduplicates and refetches.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "project id"
+          },
+          {
+            "name": "environment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "environment id"
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned SSE resume cursor. Current response is JSON HTTP 501, not an event stream."
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "message": "Run event streaming is not implemented",
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "operationId": "user_events",
+        "summary": "User events",
+        "tags": [
+          "Projects and environments"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Authenticated user SSE for notification.created/read, run.updated, dashboard.invalidated. Support reconnect/resume and membership changes.",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned contract; not currently validated or applied (except dashboard scope/timezone echo). "
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Planned SSE resume cursor. Current response is JSON HTTP 501, not an event stream."
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                },
+                "example": {
+                  "message": "User event streaming is not implemented"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/runs/{run_id}/execution-events": {
+      "post": {
+        "operationId": "receive_execution_event",
+        "summary": "Receive execution event",
+        "tags": [
+          "Internal callbacks"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Authenticate the worker/job, deduplicate/order events, save results and publish durable updates. Body: event_id, job_id, attempt, sequence, type, occurred_at, schema_version, payload. Deduplicate and validate job/run binding. Do not accept events or echo potentially sensitive executor payloads yet.",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "message": "Execution event ingestion is not implemented",
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/runs/{run_id}/ai-usage": {
+      "post": {
+        "operationId": "receive_ai_usage",
+        "summary": "Receive ai usage",
+        "tags": [
+          "Internal callbacks"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Authenticate the service and persist usage revisions idempotently; update costs and notify FE. Body: usage_id, event_id, revision, cost_session_id, job_id, attempt, provider, model, operation, tokens, amount, currency, status, timestamps. AI service must durably save usage before delivery. Idempotent BE upsert.",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "message": "AI usage ingestion is not implemented",
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/runs/{run_id}/ai-cost-finalizations": {
+      "post": {
+        "operationId": "finalize_ai_cost",
+        "summary": "Finalize ai cost",
+        "tags": [
+          "Internal callbacks"
+        ],
+        "description": "Current stub: returns HTTP 501. TODO: Authenticate the service and verify all expected final usage before saving final cost state. Body: event_id, cost_session_id, revision, final_usage_count/digest, closed_at. Finalize only after all final usage matches; completion alone is insufficient.",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run id"
+          }
+        ],
+        "responses": {
+          "501": {
+            "description": "Not implemented (current placeholder)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "run_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "run_id"
+                  ]
+                },
+                "example": {
+                  "message": "AI cost finalization is not implemented",
+                  "run_id": "example-run_id"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,45 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template, send_file
+from pathlib import Path
 import os
 
 app = Flask(__name__)
+
+
+@app.get("/openapi.json")
+def openapi_spec():
+    return send_file(Path(__file__).resolve().parent.parent / "docs" / "openapi.json",
+                     mimetype="application/json")
+
+
+@app.get("/docs")
+@app.get("/docs/")
+def swagger_ui():
+    return render_template("swagger.html")
+
+app.config["CORS_ALLOWED_ORIGINS"] = {
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+}
+
+
+@app.after_request
+def allow_frontend_origin(response):
+    # CORS permits browser access; it does not replace authentication.
+    if request.path != "/" and not request.path.startswith("/api/"):
+        return response
+    response.vary.add("Origin")
+    origin = request.headers.get("Origin")
+    if origin and origin in app.config["CORS_ALLOWED_ORIGINS"]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        if request.method == "OPTIONS":
+            response.headers["Access-Control-Allow-Methods"] = "GET, HEAD, POST, PATCH, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = (
+                "Authorization, Content-Type, Idempotency-Key, Last-Event-ID"
+            )
+            response.headers["Access-Control-Max-Age"] = "600"
+    return response
+
 
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL")
 AI_API_KEY = os.getenv("AI_API_KEY")
@@ -454,4 +492,4 @@ def finalize_ai_cost(run_id):
 
 # Register every route before starting the development server.
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=int(os.getenv("PORT", "8000")), debug=True)
