@@ -187,7 +187,9 @@ def test_a1_evidence_is_authorized_fetched_verified_and_cached(owned, monkeypatc
     cached = s.db.get(Evidence, evidence_id)
     assert cached.captured_at is None
     store_for("evidence").path(cached.storage_key).write_bytes(b'tampered')
-    assert s.client.get('/evidence/' + evidence_id, follow_redirects=False).status_code == 409
+    response = s.client.get('/evidence/' + evidence_id, follow_redirects=False)
+    assert response.status_code == 302, response.text
+    assert s.client.get(urlsplit(response.headers['location']).path).status_code == 409
 
 
 def test_unknown_evidence_does_not_query_ai(owned, monkeypatch):

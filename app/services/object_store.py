@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Literal, Protocol
 from uuid import uuid4
 
+from google.auth import exceptions as auth_exceptions
+from google.api_core import exceptions as api_exceptions
+from google.cloud import storage
+
 from app.core.config import get_settings
 from app.core.errors import ServiceError
 
@@ -53,9 +57,6 @@ class LocalStore:
     def remove(self, key: str) -> None:
         self.path(key).unlink(missing_ok=True)
 
-    # Kept alongside present()/read() through the step 1->2 transition: grant()
-    # and download() still call this directly until step 2 moves the integrity
-    # check from grant-time to download-time.
     def available(self, key: str, expected_sha: str | None = None) -> Path:
         path = self.path(key)
         if not path.is_file() or path.stat().st_size > MAX_OBJECT_BYTES:
@@ -69,6 +70,77 @@ class LocalStore:
 
     def present(self, key: str) -> None:
         self.available(key)
+
+
+class GCSStore:
+    """Evidence/documents in a bucket. Keys and the 10 MiB cap are identical
+    to LocalStore; only the medium changes."""
+
+    def __init__(self, bucket: str) -> None:
+        self._bucket = storage.Client().bucket(bucket)
+
+    def _blob(self, key: str) -> storage.Blob:
+        if not isinstance(key, str) or not re.fullmatch(r"[0-9a-f]{32}", key):
+            raise ServiceError("not_found", "Private object is unavailable.", 404)
+        return self._bucket.blob(key)
+
+    def put(self, data: bytes, *, metadata: dict[str, str] | None = None) -> str:
+        if not data or len(data) > MAX_OBJECT_BYTES:
+            raise ServiceError("invalid_upload", "Objects must contain 1 byte to 10 MiB.", 413)
+        key = uuid4().hex
+        blob = self._bucket.blob(key)
+        if metadata:
+            blob.metadata = metadata
+        try:
+            # if_generation_match=0 is the bucket equivalent of "xb": the
+            # write fails rather than silently overwriting an existing key.
+            blob.upload_from_string(data, content_type="application/octet-stream", if_generation_match=0)
+        except (api_exceptions.GoogleAPIError, auth_exceptions.GoogleAuthError) as exc:
+            # A fresh uuid4 key colliding or a NotFound here both mean the
+            # bucket/credential is misconfigured, not that "the object is
+            # gone" -- there was never an object to be gone.
+            raise ServiceError("storage_unavailable", "Private storage is unavailable.", 503) from exc
+        return key
+
+    def read(self, key: str, expected_sha: str | None = None) -> bytes:
+        blob = self._blob(key)
+        try:
+            blob.reload()
+        except api_exceptions.NotFound:
+            raise ServiceError("not_found", "Private object is unavailable.", 404) from None
+        except (api_exceptions.GoogleAPIError, auth_exceptions.GoogleAuthError) as exc:
+            raise ServiceError("storage_unavailable", "Private storage is unavailable.", 503) from exc
+        if blob.size is None or blob.size > MAX_OBJECT_BYTES:
+            raise ServiceError("not_found", "Private object is unavailable.", 404)
+        try:
+            data = blob.download_as_bytes()
+        except api_exceptions.NotFound:
+            raise ServiceError("not_found", "Private object is unavailable.", 404) from None
+        except (api_exceptions.GoogleAPIError, auth_exceptions.GoogleAuthError) as exc:
+            raise ServiceError("storage_unavailable", "Private storage is unavailable.", 503) from exc
+        if expected_sha and hashlib.sha256(data).hexdigest() != expected_sha:
+            raise ServiceError("artifact_corrupt", "Private object integrity check failed.", 409)
+        return data
+
+    def present(self, key: str) -> None:
+        blob = self._blob(key)
+        try:
+            blob.reload()
+        except api_exceptions.NotFound:
+            raise ServiceError("not_found", "Private object is unavailable.", 404) from None
+        except (api_exceptions.GoogleAPIError, auth_exceptions.GoogleAuthError) as exc:
+            raise ServiceError("storage_unavailable", "Private storage is unavailable.", 503) from exc
+        if blob.size is None or blob.size > MAX_OBJECT_BYTES:
+            raise ServiceError("not_found", "Private object is unavailable.", 404)
+
+    def remove(self, key: str) -> None:
+        blob = self._blob(key)
+        try:
+            blob.delete()
+        except api_exceptions.NotFound:
+            return
+        except (api_exceptions.GoogleAPIError, auth_exceptions.GoogleAuthError) as exc:
+            raise ServiceError("storage_unavailable", "Private storage is unavailable.", 503) from exc
 
 
 def store_for(kind: Kind) -> ObjectStore:

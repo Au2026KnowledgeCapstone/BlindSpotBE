@@ -1,8 +1,10 @@
 """Opaque private objects and five-minute, user-bound download grants."""
 import hashlib
 import json
+from urllib.parse import quote
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import Response
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from app.core.config import get_settings
 from app.core.deps import _resolve
@@ -36,8 +38,18 @@ def evidence(db, user, eid):
     return result
 
 
+def content_disposition(filename):
+    # RFC 5987: fall back to the percent-encoded form whenever the filename
+    # contains anything (e.g. a quote) that would otherwise need escaping out
+    # of the quoted-string, rather than interpolating it unescaped.
+    encoded = quote(filename)
+    if encoded != filename:
+        return f"attachment; filename*=utf-8''{encoded}"
+    return f'attachment; filename="{filename}"'
+
+
 def grant(request, kind, row, project_id, user):
-    store_for(kind).available(row.storage_key, row.sha256)
+    store_for(kind).present(row.storage_key)
     origin = request.app.state.auth_settings.backend_origin
     if not origin:
         raise ServiceError("storage_unavailable", "Backend download origin is not configured.", 503)
@@ -125,7 +137,8 @@ def download(db, user, token):
         filename, media = f"evidence-{row.id}", row.media_type or "application/octet-stream"
     else:
         raise ServiceError("invalid_download", "Invalid download kind.", 403)
-    path = store_for(kind).available(row.storage_key, row.sha256)
+    data = store_for(kind).read(row.storage_key, row.sha256)
     # Attachments and nosniff keep HTML/text evidence from becoming executable app content.
-    return FileResponse(path, media_type=media, filename=filename,
-        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"})
+    return Response(content=data, media_type=media, headers={"Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox",
+        "Content-Disposition": content_disposition(filename)})
