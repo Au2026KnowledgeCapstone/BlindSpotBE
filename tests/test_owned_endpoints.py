@@ -16,7 +16,8 @@ from app.core.auth_config import AuthSettings
 from app.core.config import get_settings
 from app.core.deps import project_access, project_manage
 from app.models import Import, ImportDocument, Requirement, Evidence, Environment
-from app.services.private_storage import PrivateStore, signer
+from app.services.object_store import store_for
+from app.services.private_storage import signer
 from test_integration import setup, queue, send, event
 
 
@@ -76,7 +77,7 @@ def test_import_retention_readback_and_submission_replay(owned, monkeypatch):
     assert s.client.post(path, files=changed, headers={'Idempotency-Key': 'upload-1'}).status_code == 409
     assert s.db.scalar(select(func.count()).select_from(Import)) == 1
     document = s.db.scalar(select(ImportDocument))
-    assert PrivateStore().available(document.storage_key).read_bytes() in [f[1] for f in files().values()]
+    assert store_for("document").read(document.storage_key) in [f[1] for f in files().values()]
 
 
 def test_document_grant_checks_identity_expiry_and_membership(owned, monkeypatch):
@@ -185,7 +186,7 @@ def test_a1_evidence_is_authorized_fetched_verified_and_cached(owned, monkeypatc
     assert len(calls) == 1
     cached = s.db.get(Evidence, evidence_id)
     assert cached.captured_at is None
-    PrivateStore().path(cached.storage_key).write_bytes(b'tampered')
+    store_for("evidence").path(cached.storage_key).write_bytes(b'tampered')
     assert s.client.get('/evidence/' + evidence_id, follow_redirects=False).status_code == 409
 
 
@@ -209,5 +210,5 @@ def test_private_storage_rejects_paths_and_logs_redact_download_grants(owned):
     from app.core.observability import clean_text
     from app.core.errors import ServiceError
     with pytest.raises(ServiceError):
-        PrivateStore().available('../.env')
+        store_for('document').present('../.env')
     assert 'secret-link-value' not in clean_text('GET /downloads/secret-link-value HTTP/1.1')

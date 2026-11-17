@@ -1,10 +1,6 @@
 """Opaque private objects and five-minute, user-bound download grants."""
 import hashlib
 import json
-import os
-import re
-from pathlib import Path
-from uuid import uuid4
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import select
@@ -13,46 +9,8 @@ from app.core.deps import _resolve
 from app.core.errors import ServiceError
 from app.models import Import, ImportDocument, Evidence, Result, AnalysisRun
 from app.models.integration import Dispatch, ResultDetail
+from app.services.object_store import store_for, MAX_OBJECT_BYTES
 from app.services.resources import uid
-
-MAX_OBJECT_BYTES = 10 * 1024 * 1024
-
-
-class PrivateStore:
-    def __init__(self):
-        directory = get_settings().private_storage_dir
-        if not directory:
-            raise ServiceError("storage_unavailable", "Private storage is not configured.", 503)
-        self.root = Path(directory).resolve()
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-
-    def path(self, key):
-        if not isinstance(key, str) or not re.fullmatch(r"[0-9a-f]{32}", key):
-            raise ServiceError("not_found", "Private object is unavailable.", 404)
-        path = self.root / key
-        if path.is_symlink() or path.resolve().parent != self.root:
-            raise ServiceError("not_found", "Private object is unavailable.", 404)
-        return path
-
-    def put(self, data):
-        if not data or len(data) > MAX_OBJECT_BYTES:
-            raise ServiceError("invalid_upload", "Objects must contain 1 byte to 10 MiB.", 413)
-        key = uuid4().hex
-        with self.path(key).open("xb") as output:
-            os.chmod(output.name, 0o600)
-            output.write(data)
-        return key
-
-    def remove(self, key):
-        self.path(key).unlink(missing_ok=True)
-
-    def available(self, key, expected_sha=None):
-        path = self.path(key)
-        if not path.is_file() or path.stat().st_size > MAX_OBJECT_BYTES:
-            raise ServiceError("not_found", "Private object is unavailable.", 404)
-        if expected_sha and hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha:
-            raise ServiceError("artifact_corrupt", "Private object integrity check failed.", 409)
-        return path
 
 
 def signer():
@@ -79,7 +37,7 @@ def evidence(db, user, eid):
 
 
 def grant(request, kind, row, project_id, user):
-    PrivateStore().available(row.storage_key, row.sha256)
+    store_for(kind).available(row.storage_key, row.sha256)
     origin = request.app.state.auth_settings.backend_origin
     if not origin:
         raise ServiceError("storage_unavailable", "Backend download origin is not configured.", 503)
@@ -133,7 +91,7 @@ async def get_evidence(db, user, eid, request):
     db.scalar(select(Result).where(Result.id == result_id).with_for_update())
     row = db.get(Evidence, uid(eid))
     if row is None:
-        store = PrivateStore()
+        store = store_for("evidence")
         key = store.put(data)
         try:
             row = Evidence(id=uid(eid), result_id=result_id, type=payload.type, storage_key=key,
@@ -155,18 +113,19 @@ def download(db, user, token):
     if payload.get("user_id") != user.user_id:
         raise ServiceError("invalid_download", "Download link belongs to another user.", 403)
     context = _resolve(db, payload["project_id"], user)
-    if payload.get("kind") == "document":
+    kind = payload.get("kind")
+    if kind == "document":
         row = db.get(ImportDocument, uid(payload["id"]))
         if not row:
             raise ServiceError("not_found", "Source document not found.", 404)
         row, _ = document(db, context, str(row.import_id), str(row.id))
         filename, media = row.filename, "application/octet-stream"
-    elif payload.get("kind") == "evidence":
+    elif kind == "evidence":
         row, _ = evidence(db, user, payload["id"])
         filename, media = f"evidence-{row.id}", row.media_type or "application/octet-stream"
     else:
         raise ServiceError("invalid_download", "Invalid download kind.", 403)
-    path = PrivateStore().available(row.storage_key, row.sha256)
+    path = store_for(kind).available(row.storage_key, row.sha256)
     # Attachments and nosniff keep HTML/text evidence from becoming executable app content.
     return FileResponse(path, media_type=media, filename=filename,
         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"})
