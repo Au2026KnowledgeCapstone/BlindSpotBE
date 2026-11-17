@@ -143,8 +143,17 @@ class GCSStore:
             raise ServiceError("storage_unavailable", "Private storage is unavailable.", 503) from exc
 
 
+_BUCKET_SETTING = {"document": "gcs_documents_bucket", "evidence": "gcs_evidence_bucket"}
+
+
 def store_for(kind: Kind) -> ObjectStore:
-    directory = get_settings().private_storage_dir
+    settings = get_settings()
+    if settings.storage_backend == "gcs":
+        bucket = getattr(settings, _BUCKET_SETTING[kind])
+        if not bucket:
+            raise ServiceError("storage_unavailable", "Private storage is not configured.", 503)
+        return GCSStore(bucket)
+    directory = settings.private_storage_dir
     if not directory:
         raise ServiceError("storage_unavailable", "Private storage is not configured.", 503)
     return LocalStore(str(Path(directory) / _SUBDIR[kind]))

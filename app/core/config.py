@@ -21,6 +21,9 @@ class Settings(BaseModel):
     dispatch_timeout_seconds: int = Field(default=10, ge=1, le=120)
     dispatch_lease_seconds: int = Field(default=180, ge=130)
     private_storage_dir: str | None = None
+    storage_backend: Literal["local", "gcs"] = "local"
+    gcs_documents_bucket: str | None = None
+    gcs_evidence_bucket: str | None = None
     download_signing_key: str | None = Field(default=None, repr=False)
     capability_timeout_seconds: int = Field(default=100, ge=10, le=180)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
