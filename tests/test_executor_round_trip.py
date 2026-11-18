@@ -53,7 +53,7 @@ def test_real_executor_stub_round_trip(tmp_path, monkeypatch):
     interpreter = os.environ.get("AISERVICE_PYTHON", str(service / ".venv/bin/python"))
     be_port, ai_port = port(), port()
     settings = {"DATABASE_URL": url, "AI_SERVICE_URL": f"http://127.0.0.1:{ai_port}",
-                "AI_API_KEY": "test-intake-secret", "AI_CALLBACK_BASE_URL": f"http://127.0.0.1:{be_port}/internal/v1",
+                "AI_SERVICE_TOKEN": "test-intake-secret", "AI_CALLBACK_BASE_URL": f"http://127.0.0.1:{be_port}/internal/v1",
                 "DISPATCH_ENCRYPTION_KEY": Fernet.generate_key().decode(), "AI_ENGINE": "stub", "PRIVATE_STORAGE_DIR": str(tmp_path / "private"),
                 "DOWNLOAD_SIGNING_KEY": Fernet.generate_key().decode()}
     for key, value in settings.items():
@@ -101,16 +101,22 @@ def test_real_executor_stub_round_trip(tmp_path, monkeypatch):
                         assert cost["cost_status"] == "final" and cost["estimated_cost_usd"] == 0
                         assert dispatch.status == "accepted"
                         from app.models.integration import ResultDetail
+                        from app.core.errors import ServiceError
                         from app.services import private_storage
                         import asyncio
                         detail = db.get(ResultDetail, result.id)
                         evidence_id = detail.outcome["criterion_verdicts"][0]["cited_evidence_ids"][0]
                         request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
                             auth_settings=SimpleNamespace(backend_origin=f"http://127.0.0.1:{be_port}"))))
-                        response = asyncio.run(private_storage.get_evidence(db, context.user, evidence_id, request))
-                        token = response.headers["location"].rsplit("/", 1)[1]
-                        download = private_storage.download(db, context.user, token)
-                        assert Path(download.path).read_bytes()
+                        # The stub engine's OutboxEvidenceSink cites an outbox entry id, not a
+                        # real storage key. record_evidence() eager-creates an Evidence row for
+                        # it anyway (B6 step 8), but that row's storage_key is never a real
+                        # object -- and step 9 removed the lazy executor-fetch fallback that
+                        # used to serve exactly this case. Unreachable is the accepted outcome
+                        # for evidence from an EVIDENCE_SINK=outbox run, not a bug here.
+                        with pytest.raises(ServiceError) as excinfo:
+                            asyncio.run(private_storage.get_evidence(db, context.user, evidence_id, request))
+                        assert excinfo.value.status_code == 404
                         return
                 time.sleep(.1)
             raise AssertionError("Callbacks did not complete; inspect backend.log and executor.log")

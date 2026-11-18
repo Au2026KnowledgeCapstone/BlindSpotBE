@@ -36,7 +36,7 @@ def validate_url(value):
 
 def create_run(db, context, eid, body, idempotency_key=None):
     settings = get_settings()
-    if not settings.ai_service_url or not settings.ai_api_key or not settings.ai_callback_base_url:
+    if not settings.ai_service_url or not settings.ai_service_token or not settings.ai_callback_base_url:
         raise ServiceError("unavailable", "AI service dispatch is not configured.", 503)
     encryption = cipher()
     submission_key = None

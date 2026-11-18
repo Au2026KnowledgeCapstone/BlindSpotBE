@@ -1,5 +1,4 @@
 """Opaque private objects and five-minute, user-bound download grants."""
-import hashlib
 import json
 from urllib.parse import quote
 from cryptography.fernet import Fernet, InvalidToken
@@ -10,7 +9,6 @@ from app.core.config import get_settings
 from app.core.deps import _resolve
 from app.core.errors import ServiceError
 from app.models import Import, ImportDocument, Evidence, Result, AnalysisRun
-from app.models.integration import Dispatch, ResultDetail
 from app.services.object_store import store_for, MAX_OBJECT_BYTES
 from app.services.resources import uid
 
@@ -63,57 +61,7 @@ def download_document(db, context, iid, did, request):
 
 
 async def get_evidence(db, user, eid, request):
-    row = db.get(Evidence, uid(eid))
-    if row:
-        row, project_id = evidence(db, user, eid)
-        return grant(request, "evidence", row, project_id, user)
-    # A1 references point into the executor outbox. Resolve only references
-    # actually cited by a persisted result before contacting the executor.
-    from sqlalchemy import Text
-    candidates = db.execute(select(ResultDetail, Result).join(Result, Result.id == ResultDetail.result_id).where(
-        ResultDetail.outcome.cast(Text).contains(str(uid(eid)), autoescape=True))).all()
-    result = None
-    for detail, candidate in candidates:
-        references = [a.get("evidence_id") for a in detail.outcome.get("actions", [])]
-        references += [value for c in detail.outcome.get("criterion_verdicts", []) for value in c.get("cited_evidence_ids", [])]
-        if str(uid(eid)) in references:
-            result = candidate
-            break
-    if result is None:
-        raise ServiceError("not_found", "Evidence not found.", 404)
-    _resolve(db, str(result.project_id), user)
-    dispatch = db.scalar(select(Dispatch).where(Dispatch.run_id == result.analysis_run_id))
-    if dispatch is None:
-        raise ServiceError("not_found", "Evidence job is unavailable.", 404)
-    project_id, result_id, job_id = result.project_id, result.id, dispatch.job_id
-    db.rollback()
-    from app.services import capability_client
-    payload = await capability_client.evidence(request, job_id, str(uid(eid)))
-    import base64
-    from datetime import datetime
-    try:
-        data = base64.b64decode(payload.content_base64, validate=True)
-        captured_at = datetime.fromisoformat(payload.captured_at) if payload.captured_at else None
-    except (ValueError, TypeError):
-        raise ServiceError("invalid_ai_response", "Evidence data is invalid.", 502) from None
-    if hashlib.sha256(data).hexdigest() != payload.sha256:
-        raise ServiceError("artifact_corrupt", "Evidence integrity check failed.", 502)
-    _resolve(db, str(project_id), user)
-    # Serialize cache insertion so concurrent downloads do not create duplicate objects.
-    db.scalar(select(Result).where(Result.id == result_id).with_for_update())
-    row = db.get(Evidence, uid(eid))
-    if row is None:
-        store = store_for("evidence")
-        key = store.put(data)
-        try:
-            row = Evidence(id=uid(eid), result_id=result_id, type=payload.type, storage_key=key,
-                media_type=payload.media_type, sha256=payload.sha256, captured_at=captured_at)
-            db.add(row)
-            db.commit()
-        except Exception:
-            db.rollback()
-            store.remove(key)
-            raise
+    row, project_id = evidence(db, user, eid)
     return grant(request, "evidence", row, project_id, user)
 
 

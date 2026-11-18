@@ -14,7 +14,7 @@ class Settings(BaseModel):
     database_pooled_url: str | None = None
     ai_service_url: str | None = None
     environment_credential_encryption_key: str | None = Field(default=None, repr=False)
-    ai_api_key: str | None = Field(default=None, repr=False)
+    ai_service_token: str | None = Field(default=None, repr=False)
     ai_callback_base_url: str | None = None
     ai_engine: Literal["mvp", "graph", "stub"] = "mvp"
     dispatch_encryption_key: str | None = Field(default=None, repr=False)

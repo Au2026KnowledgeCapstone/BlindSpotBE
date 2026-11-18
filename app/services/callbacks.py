@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select, func
 
 from app.core.errors import ServiceError
-from app.models import AnalysisRun, Result, Action, AIUsage, Notification, Requirement
+from app.models import AnalysisRun, Result, Action, AIUsage, Notification, Requirement, Evidence
 from app.models.integration import Dispatch, Callback, ResultDetail
 from app.services.resources import uid
 from app.schemas.runs import Classification, Action as ActionSpec
@@ -104,6 +104,23 @@ def execution(db, runid, authorization, body):
     return remember(db, run, "execution", body, body.sequence)
 
 
+def record_evidence(db, result, outcome):
+    # The engine only ever cites screenshots here (see the B6 handoff, step 8);
+    # text evidence from put_text is never referenced by actions or verdicts.
+    # Evidence ids repeat across citations -- including across different
+    # results that share a screenshot -- so skip ids that already exist
+    # rather than treat that as new evidence belonging to this result.
+    ids = {action.evidence_id for action in outcome.actions if action.evidence_id}
+    ids |= {evidence_id for verdict in outcome.criterion_verdicts for evidence_id in verdict.cited_evidence_ids}
+    for evidence_id in ids:
+        key = uid(evidence_id)
+        if db.get(Evidence, key) is None:
+            # storage_key must stay the exact id the sink issued (flat 32-hex,
+            # no dashes) -- it is the literal GCS object name, not a
+            # reformatted UUID.
+            db.add(Evidence(id=key, result_id=result.id, type="screenshot", storage_key=evidence_id, media_type="image/png"))
+
+
 def save_result(db, run, payload):
     if payload.get("run_id") != str(run.id):
         conflict("Outcome run does not match callback run.")
@@ -131,6 +148,7 @@ def save_result(db, run, payload):
     db.add(result)
     db.flush()
     db.add(ResultDetail(result_id=result.id, outcome=outcome.model_dump()))
+    record_evidence(db, result, outcome)
     for action in outcome.actions:
         db.add(Action(id=uuid4(), result_id=result.id, idx=action.index, kind=action.kind,
                       description=action.description, outcome=action.outcome))

@@ -1,6 +1,5 @@
 """Previously unfinished assigned endpoints, exercised with PostgreSQL."""
 import base64
-import hashlib
 import json
 import time
 from urllib.parse import urlsplit
@@ -15,9 +14,11 @@ from app.core.auth import current_user
 from app.core.auth_config import AuthSettings
 from app.core.config import get_settings
 from app.core.deps import project_access, project_manage
-from app.models import Import, ImportDocument, Requirement, Evidence, Environment
+from app.models import Import, ImportDocument, Requirement, Evidence, Environment, Result
+from app.models.integration import ResultDetail
 from app.services.object_store import store_for
 from app.services.private_storage import signer
+from app.services.resources import uid
 from test_integration import setup, queue, send, event
 
 
@@ -162,38 +163,50 @@ def test_verification_requires_admin(owned):
     assert s.client.post(f'/projects/{s.context.project_id}/environments/{s.eid}/verify').status_code == 403
 
 
-def test_a1_evidence_is_authorized_fetched_verified_and_cached(owned, monkeypatch):
+def test_a1_evidence_is_eagerly_recorded_from_citations_and_served(owned):
     s = owned
     run, _, envelope, _ = queue(s)
-    evidence_id = str(uuid4())
+    evidence_id = uuid4().hex  # the literal form the sink issues: flat 32-hex, no dashes
+    data = b'Actual retained stub evidence'
+    # Simulates aiservice having already written the object to the evidence
+    # bucket before the citing callback arrives -- the step 7 ordering property.
+    store_for('evidence').path(evidence_id).write_bytes(data)
     outcome = {'verdict': 'inconclusive', 'classification': 'execution_error', 'observed_behavior': 'Stub', 'actions': [],
         'criterion_verdicts': [{'criterion_id': envelope['requirements'][0]['criteria'][0]['id'], 'verdict': 'inconclusive',
             'rationale': 'Stub', 'source': 'engine', 'cited_evidence_ids': [evidence_id]}]}
     assert send(s, run, envelope, 'execution-events', event(envelope, 1, 'requirement.completed',
         {'run_id': run['id'], 'requirement_id': s.rid, 'outcome': outcome})).status_code == 202
-    data = b'Actual retained stub evidence'
-    calls = []
-    def ai(request):
-        calls.append(request)
-        assert request.url.path == f'/v1/jobs/{envelope["job_id"]}/evidence/{evidence_id}'
-        return httpx.Response(200, json={'id': evidence_id, 'job_id': envelope['job_id'], 'type': 'page_text',
-            'media_type': 'text/plain', 'content_base64': base64.b64encode(data).decode(), 'sha256': hashlib.sha256(data).hexdigest()})
-    install_transport(monkeypatch, ai)
+    row = s.db.get(Evidence, evidence_id)
+    assert row.type == 'screenshot' and row.storage_key == evidence_id and row.media_type == 'image/png'
+    # The callback never carries a sha256, so nothing is verified on read --
+    # a known limitation of eager recording, not an oversight.
+    assert row.sha256 is None
     response = s.client.get('/evidence/' + evidence_id, follow_redirects=False)
     assert response.status_code == 302, response.text
     assert s.client.get(urlsplit(response.headers['location']).path).content == data
-    assert s.client.get('/evidence/' + evidence_id, follow_redirects=False).status_code == 302
-    assert len(calls) == 1
-    cached = s.db.get(Evidence, evidence_id)
-    assert cached.captured_at is None
-    store_for("evidence").path(cached.storage_key).write_bytes(b'tampered')
-    response = s.client.get('/evidence/' + evidence_id, follow_redirects=False)
-    assert response.status_code == 302, response.text
-    assert s.client.get(urlsplit(response.headers['location']).path).status_code == 409
 
 
-def test_unknown_evidence_does_not_query_ai(owned, monkeypatch):
-    install_transport(monkeypatch, lambda request: pytest.fail('Unreferenced evidence must not be fetched'))
+def test_evidence_without_an_eager_row_is_unreachable(owned):
+    """Step 9 retires GET /v1/jobs/{job_id}/evidence/{evidence_id} and the lazy
+    executor-fetch fallback that called it. A ResultDetail citing evidence with
+    no corresponding Evidence row -- e.g. data from before eager recording
+    existed, or from an aiservice still running EVIDENCE_SINK=outbox -- is no
+    longer reachable. This is the accepted cost of the removal, not a bug."""
+    s = owned
+    run, _, envelope, _ = queue(s)
+    evidence_id = str(uuid4())
+    result = Result(id=uuid4(), project_id=uid(s.context.project_id), analysis_run_id=uid(run['id']),
+        requirement_id=uid(s.rid), verdict='inconclusive', classification='execution_error', observed_behavior='Stub', duration_ms=None)
+    s.db.add(result)
+    s.db.flush()
+    s.db.add(ResultDetail(result_id=result.id, outcome={'actions': [],
+        'criterion_verdicts': [{'criterion_id': envelope['requirements'][0]['criteria'][0]['id'],
+            'cited_evidence_ids': [evidence_id]}]}))
+    s.db.commit()
+    assert s.client.get('/evidence/' + evidence_id, follow_redirects=False).status_code == 404
+
+
+def test_unknown_evidence_is_not_found(owned):
     assert owned.client.get('/evidence/' + str(uuid4())).status_code == 404
 
 

@@ -39,7 +39,7 @@ def setup(monkeypatch):
     sessions = sessionmaker(bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False)
     db = sessions()
     monkeypatch.setenv("AI_SERVICE_URL", "http://executor.test")
-    monkeypatch.setenv("AI_API_KEY", "intake-secret")
+    monkeypatch.setenv("AI_SERVICE_TOKEN", "intake-secret")
     monkeypatch.setenv("AI_CALLBACK_BASE_URL", "http://backend.test/internal/v1")
     monkeypatch.setenv("DISPATCH_ENCRYPTION_KEY", Fernet.generate_key().decode())
     monkeypatch.setenv("AI_ENGINE", "stub")
