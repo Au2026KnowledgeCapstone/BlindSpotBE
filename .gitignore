@@ -8,6 +8,9 @@ __pycache__/
 
 # Local database test tools and logs
 .tools/
+
+# Local dev object storage (STORAGE_BACKEND=local)
+.private-storage/
 .mcp.json
 .claude
 *.egg-info/

@@ -65,6 +65,34 @@ BlindSpotBE/
 Copy `.env.example` to `.env` and fill in values for local development. Never
 commit `.env` or any real secrets.
 
+## Object storage
+
+Documents and evidence live in two separate GCS buckets in production;
+`STORAGE_BACKEND=local` (the default) is for development and tests and needs
+no GCP credential. These prerequisites are provisioned out of band and are
+not inferable from the code:
+
+- Two buckets — documents and evidence — each with **uniform bucket-level
+  access** and **public access prevention enforced**, in the same region as
+  the services.
+- BE's service account: `roles/storage.objectAdmin` on the **documents**
+  bucket, `roles/storage.objectViewer` on the **evidence** bucket. BE only
+  ever reads evidence; aiservice is the one that writes it.
+- aiservice's service account: `roles/storage.objectCreator` on the
+  **evidence** bucket, and nothing else — it never reads, deletes, or touches
+  documents.
+- Credentials are **Application Default Credentials only**. On Cloud Run the
+  runtime service account is picked up with no configuration; there is no
+  service-account-JSON setting and none belongs in `.env`.
+- Lifecycle rules: **none on the documents bucket, ever** — BE keeping
+  originals is a settled decision, so a lifecycle rule there would be
+  unrecoverable data loss for something users believe is retained
+  permanently. **None on the evidence bucket either**, unless its retention
+  window is set strictly longer than how long analysis runs are kept — once
+  aiservice writes a screenshot straight to the bucket, that object is the
+  only copy a stored verdict cites, and a rule shorter than the run retention
+  period will make the UI 404 on evidence attached to real results.
+
 ## Authentication
 
 BE owns the full login/session lifecycle — the frontend never holds a token

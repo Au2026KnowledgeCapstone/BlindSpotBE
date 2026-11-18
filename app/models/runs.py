@@ -102,28 +102,6 @@ class Result(Identity, Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer)
 
 
-class CriterionAssessment(Identity, Base):
-    __tablename__ = "criterion_assessments"
-    __table_args__ = (
-        CheckConstraint("verdict IN ('pass','fail','inconclusive')", name="ck_criterion_assessments_verdict"),
-        CheckConstraint("source IN ('ai','objective','engine')", name="ck_criterion_assessments_source"),
-        {"schema": "blindspot"},
-    )
-
-    result_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("blindspot.results.id", ondelete="CASCADE"), index=True
-    )
-    # Nullable: a criterion can be deleted later through the requirement PATCH
-    # reconciliation. The historical assessment must survive that, so this is
-    # ON DELETE SET NULL rather than CASCADE.
-    criterion_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("blindspot.acceptance_criteria.id", ondelete="SET NULL")
-    )
-    verdict: Mapped[str] = mapped_column(Text)
-    rationale: Mapped[str] = mapped_column(Text)
-    source: Mapped[str] = mapped_column(Text)
-
-
 class Evidence(Identity, Base):
     __tablename__ = "evidence"
     __table_args__ = (
