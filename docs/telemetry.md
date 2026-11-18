@@ -9,6 +9,8 @@ stdout logs and Sentry event tags, and forwarded to Supabase Auth/PostgREST.
 It is **not** a trace ID or an authorization credential. Sentry generates the
 trace/span IDs. Completion logs include both IDs when a trace is active.
 
+The local ignored `.env` is configured; `.env.sentry` holds a separate copy for controlled verification.
+
 ## Configuration
 
 - `SENTRY_DSN`: blank disables Sentry initialization/export.

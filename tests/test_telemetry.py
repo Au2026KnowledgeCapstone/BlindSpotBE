@@ -45,7 +45,7 @@ def test_trace_preflight_keeps_existing_origin_restrictions(monkeypatch):
     response = client.options("/auth/signup", headers=headers)
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://frontend.example.com"
-    assert client.options("/auth/signup", headers={**headers, "Origin": "https://untrusted.example.com"}).status_code == 400
+    assert client.options("/auth/signup", headers={**headers, "Origin": "https://untrusted.example.com"}).status_code == 403
 
 
 def test_real_sdk_continues_browser_trace_and_instruments_outbound_http(caplog):
