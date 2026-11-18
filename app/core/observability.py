@@ -8,12 +8,15 @@ import re
 import sys
 import time
 import uuid
+import sentry_sdk
+from sentry_sdk import logger as sentry_logger
+from sentry_sdk.traces import get_current_span
 
 from app.core.config import get_settings
 
 _context: ContextVar[dict] = ContextVar("request_log_context", default={})
 
-FIELDS = {"request_id", "method", "route", "status_code", "duration_ms", "error_type"}
+FIELDS = {"request_id", "trace_id", "span_id", "method", "route", "status_code", "duration_ms", "error_type"}
 
 
 def bind_context(**values) -> object:
@@ -125,7 +128,10 @@ class RequestIdMiddleware:
                 message = {**message, "headers": headers}
             await send(message)
 
-        token = bind_context(request_id=request_id)
+        span = get_current_span()
+        trace = {"trace_id": span.trace_id, "span_id": span.span_id} if span else {}
+        sentry_sdk.get_isolation_scope().set_tag("request_id", request_id)
+        token = bind_context(request_id=request_id, **trace)
         try:
             try:
                 await self.app(scope, receive, send_wrapper)
@@ -133,14 +139,17 @@ class RequestIdMiddleware:
                 logger.exception("Unhandled request failure", extra={"method": scope["method"]})
                 raise
             finally:
+                metadata = {
+                    "method": scope["method"],
+                    "route": getattr(scope.get("route"), "path", "unmatched"),
+                    "status_code": status,
+                    "duration_ms": round((time.monotonic() - started) * 1000, 2),
+                }
+                if span and span.sampled:
+                    sentry_logger.info("Request completed", attributes={**current_context(), **metadata})
                 logger.info(
                     "Request completed",
-                    extra={
-                        "method": scope["method"],
-                        "route": scope.get("path"),
-                        "status_code": status,
-                        "duration_ms": round((time.monotonic() - started) * 1000, 2),
-                    },
+                    extra=metadata,
                 )
         finally:
             _context.reset(token)

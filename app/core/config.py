@@ -11,6 +11,20 @@ class Settings(BaseModel):
     model_config = ConfigDict(extra="ignore", hide_input_in_errors=True)
 
     database_url: str
+    sentry_dsn: str | None = Field(default=None, repr=False)
+    sentry_environment: str = "development"
+    sentry_release: str | None = None
+    sentry_traces_sample_rate: float = Field(default=0.1, ge=0, le=1)
+    sentry_trace_propagation_targets: list[str] = Field(default_factory=list)
+
+    @field_validator("sentry_trace_propagation_targets", mode="before")
+    @classmethod
+    def parse_trace_targets(cls, value):
+        if isinstance(value, str):
+            import json
+            return json.loads(value) if value.strip() else []
+        return value
+
     database_pooled_url: str | None = None
     ai_service_url: str | None = None
     environment_credential_encryption_key: str | None = Field(default=None, repr=False)
