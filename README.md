@@ -93,6 +93,14 @@ not inferable from the code:
   only copy a stored verdict cites, and a rule shorter than the run retention
   period will make the UI 404 on evidence attached to real results.
 
+The `blindspotbe-git-main-with-dispatch` Cloud Build trigger deploys pushes to
+`main`. Its inline copy of [cloudbuild.yaml](cloudbuild.yaml) reapplies the
+required Cloud Run runtime variables, secret references, and dedicated runtime
+service account on every image deploy and updates the `blindspotbe-dispatch`
+Cloud Run worker pool with the same image. It uses `--update-env-vars` and
+`--update-secrets`, which preserve unrelated settings. Changes to the
+repository file must also be applied to the trigger's inline copy.
+
 ## Authentication
 
 BE owns the full login/session lifecycle — the frontend never holds a token
@@ -117,6 +125,11 @@ separate dispatcher alongside the API:
 ```bash
 .venv/bin/python -m app.services.dispatch
 ```
+
+In Cloud Run, `blindspotbe-dispatch` runs one always-on worker instance using
+the buildpack launcher to execute `python -m app.services.dispatch`. It uses the same direct `DATABASE_URL`,
+aiservice URL and token, and persistent dispatch encryption key as the API.
+The main-branch trigger deploys the API first, then updates the worker pool.
 
 See [AI integration](docs/ai-integration.md) for configuration, testing,
 operational recovery, and A1 protocol behavior. All 17 assigned routes in main
