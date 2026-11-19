@@ -4,7 +4,7 @@ Public product routes are declared in this file and app/services/.
 """
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, File, Query, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Query, Request, Response, UploadFile, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
@@ -422,6 +422,32 @@ def create_run(db: Db, context: ProjectAccess, eid: str, body: RunCreate, reques
 )
 def get_run(db: Db, context: ProjectAccess, eid: str, runid: str) -> Run:
     return analysis.run_out(db, analysis.get_run(db, context, eid, runid))
+
+
+@app.get(
+    "/projects/{pid}/environments/{eid}/runs/{runid}/browser-preview",
+    tags=["Analysis"],
+    summary="Get the latest post-login browser frame for a run",
+)
+async def get_browser_preview(db: Db, context: ProjectAccess, eid: str, runid: str, request: Request):
+    from app.services.browser_preview import get_preview
+    from fastapi.responses import JSONResponse
+    preview = await get_preview(db, context, eid, runid, request)
+    return JSONResponse(preview.model_dump(mode="json"), headers={"Cache-Control": "private, no-store"})
+
+
+@app.websocket("/projects/{pid}/environments/{eid}/runs/{runid}/browser-live")
+async def browser_live(websocket: WebSocket, pid: str, eid: str, runid: str):
+    from app.services.live_browser import serve_live_browser
+    await serve_live_browser(websocket, pid, eid, runid)
+
+
+@app.get("/projects/{pid}/environments/{eid}/runs/{runid}/timeline", tags=["Analysis"], summary="Read the run's plan and execution progress")
+async def run_timeline(db: Db, context: ProjectAccess, eid: str, runid: str, request: Request, after: int = Query(default=0, ge=0)):
+    from app.services.run_timeline import timeline
+    from fastapi.responses import JSONResponse
+    result = await timeline(db, context, eid, runid, after, request)
+    return JSONResponse(result.model_dump(mode="json"), headers={"Cache-Control": "private, no-store"})
 
 
 @app.post(

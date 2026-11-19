@@ -44,6 +44,15 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
     response = JSONResponse(status_code=500, content=_envelope("internal_error", message))
     if request_id:
         response.headers["X-Request-ID"] = request_id
+    # Unhandled errors are rendered outside CORSMiddleware by Starlette.
+    # Apply the same explicit origin policy so browsers can read the envelope.
+    settings = getattr(request.app.state, "auth_settings", None)
+    origin = request.headers.get("origin")
+    if settings and origin in settings.trusted_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Expose-Headers"] = "X-Request-ID"
+        response.headers["Vary"] = "Origin"
     return response
 
 

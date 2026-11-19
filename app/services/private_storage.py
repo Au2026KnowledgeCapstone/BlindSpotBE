@@ -94,19 +94,27 @@ def download_document(db, context, iid, did, request):
 
 async def get_evidence(db, user, eid, request):
     row = db.get(Evidence, uid(eid))
+    result = None
     if row:
         row, project_id = evidence(db, user, eid)
-        return grant(request, "evidence", row, project_id, user)
+        try:
+            return grant(request, "evidence", row, project_id, user)
+        except ServiceError as exc:
+            if exc.code != "not_found":
+                raise
+        # Another BE instance may have persisted the reference or cached the
+        # file on its own disk. Authorize above, then hydrate this instance.
+        result = db.get(Result, row.result_id)
     # A1 references point into the executor outbox. Resolve only references
     # actually cited by a persisted result before contacting the executor.
     from sqlalchemy import Text
-    candidates = db.execute(select(ResultDetail, Result).join(Result, Result.id == ResultDetail.result_id).where(
-        ResultDetail.outcome.cast(Text).contains(str(uid(eid)), autoescape=True))).all()
-    result = None
+    candidates = [] if result is not None else db.execute(select(ResultDetail, Result).join(Result, Result.id == ResultDetail.result_id).where(
+        (ResultDetail.outcome.cast(Text).contains(str(uid(eid)), autoescape=True)) |
+        (ResultDetail.outcome.cast(Text).contains(uid(eid).hex, autoescape=True)))).all()
     for detail, candidate in candidates:
         references = [a.get("evidence_id") for a in detail.outcome.get("actions", [])]
         references += [value for c in detail.outcome.get("criterion_verdicts", []) for value in c.get("cited_evidence_ids", [])]
-        if str(uid(eid)) in references:
+        if any(value in {str(uid(eid)), uid(eid).hex} for value in references):
             result = candidate
             break
     if result is None:
@@ -132,13 +140,23 @@ async def get_evidence(db, user, eid, request):
     # Serialize cache insertion so concurrent downloads do not create duplicate objects.
     db.scalar(select(Result).where(Result.id == result_id).with_for_update())
     row = db.get(Evidence, uid(eid))
-    if row is None:
+    available = False
+    if row is not None:
+        try:
+            PrivateStore().available(row.storage_key, row.sha256)
+            available = True
+        except ServiceError as exc:
+            if exc.code != "not_found":
+                raise
+    if not available:
         store = PrivateStore()
         key = store.put(data)
         try:
-            row = Evidence(id=uid(eid), result_id=result_id, type=payload.type, storage_key=key,
-                media_type=payload.media_type, sha256=payload.sha256, captured_at=captured_at)
-            db.add(row)
+            if row is None:
+                row = Evidence(id=uid(eid), result_id=result_id, type=payload.type)
+                db.add(row)
+            row.storage_key, row.media_type = key, payload.media_type
+            row.sha256, row.captured_at = payload.sha256, captured_at
             db.commit()
         except Exception:
             db.rollback()
@@ -167,6 +185,8 @@ def download(db, user, token):
     else:
         raise ServiceError("invalid_download", "Invalid download kind.", 403)
     path = PrivateStore().available(row.storage_key, row.sha256)
-    # Attachments and nosniff keep HTML/text evidence from becoming executable app content.
-    return FileResponse(path, media_type=media, filename=filename,
+    # Only validated raster images render inline. Documents and text remain
+    # attachments so stored HTML cannot become executable application content.
+    disposition = "inline" if payload.get("kind") == "evidence" and media in {"image/png", "image/jpeg"} else "attachment"
+    return FileResponse(path, media_type=media, filename=filename, content_disposition_type=disposition,
         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"})

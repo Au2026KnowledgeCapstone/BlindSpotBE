@@ -79,7 +79,7 @@ def set_session(response: Response, data: dict, settings: AuthSettings) -> User:
 async def csrf_guard(
     request: Request,
     x_csrf_protection: Annotated[
-        str | None, Header(description="Required value: 1. Also send an allowed Origin and application/json.")
+        str | None, Header(description="Required value: 1. Also send an allowed Origin and the route's expected content type.")
     ] = None,
 ) -> None:
     # Exact Origin + a non-simple custom header is an explicit CSRF protocol,
@@ -91,7 +91,12 @@ async def csrf_guard(
         or (request.headers.get("sec-fetch-site") == "cross-site" and settings.same_site != "none")
     ):
         raise AuthError(403, "Origin or CSRF check failed")
-    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    route = request.scope.get("route")
+    document_upload = request.method == "POST" and getattr(route, "path", None) == "/projects/{pid}/imports"
+    if document_upload and media_type == "multipart/form-data":
+        return
+    if media_type != "application/json":
         raise AuthError(415, "Use application/json")
 
 

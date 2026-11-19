@@ -1,4 +1,5 @@
 import uuid
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -28,6 +29,20 @@ def _build_app() -> FastAPI:
 
 
 client = TestClient(_build_app(), raise_server_exceptions=False)
+
+
+def test_unhandled_error_cors_only_allows_trusted_origins():
+    app = _build_app()
+    app.state.auth_settings = SimpleNamespace(trusted_origins=("http://localhost:3000",))
+    client = TestClient(app, raise_server_exceptions=False)
+    for origin in ("http://localhost:3000", "https://evil.example"):
+        response = client.get("/boom", headers={"Origin": origin})
+        assert response.status_code == 500
+        if origin == "http://localhost:3000":
+            assert response.headers["Access-Control-Allow-Origin"] == origin
+            assert response.headers["Access-Control-Allow-Credentials"] == "true"
+        else:
+            assert "Access-Control-Allow-Origin" not in response.headers
 
 
 def test_deliberate_500_envelope_shape_and_request_id():

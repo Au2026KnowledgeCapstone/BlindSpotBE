@@ -1,0 +1,888 @@
+diff --git a/Dockerfile b/Dockerfile
+index e74616a..f504eb5 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -8,6 +8,8 @@ COPY engines ./engines
+ COPY alembic.ini ./
+ COPY alembic ./alembic
+
++RUN apt-get update && apt-get install -y --no-install-recommends xvfb x11vnc websockify && rm -rf /var/lib/apt/lists/*
++
+ RUN pip install --no-cache-dir '.[engine]' \
+     && python -m playwright install --with-deps chromium \
+     && useradd --create-home --uid 10001 aiservice \
+diff --git a/app/core/config.py b/app/core/config.py
+index 46e3219..08b7ebb 100644
+--- a/app/core/config.py
++++ b/app/core/config.py
+@@ -13,6 +13,8 @@ class Settings(BaseModel):
+     engine: Literal["mvp", "graph", "stub"] = "mvp"
+     database_url: str  # aiservice's own operational database. Required.
+     service_token: str = Field(default="", repr=False)  # BE presents this on POST /v1/jobs.
++    browser_live_view: bool = False
++    browser_slow_mo_ms: int = Field(default=250, ge=0, le=2000)
+     max_concurrent_jobs: int = Field(default=1, ge=1)
+     job_timeout_seconds: int = Field(default=1800, ge=1)
+     callback_encryption_key: str = Field(default="", repr=False)
+diff --git a/app/jobs/runner.py b/app/jobs/runner.py
+index 381c98d..f3cec26 100644
+--- a/app/jobs/runner.py
++++ b/app/jobs/runner.py
+@@ -22,7 +22,11 @@ logger = logging.getLogger(__name__)
+
+ class JobRunner:
+     def __init__(self, config: Settings, sessions: sessionmaker, engine_factory=build_engine, provider_factory=MeteredProvider):
++        if config.browser_live_view and config.max_concurrent_jobs != 1:
++            raise ValueError("Live desktop requires one concurrent execution")
+         self.config = config
++        from app.jobs.browser_preview import BrowserPreviewStore
++        self.browser_preview = BrowserPreviewStore(config)
+         self.sessions = sessions
+         self.engine_factory = engine_factory
+         self.provider_factory = provider_factory
+@@ -31,6 +35,8 @@ class JobRunner:
+         self.admissions: set[asyncio.Task] = set()
+         self.job_ids: dict[asyncio.Task, str] = {}
+         self.stopping = False
++        self.active_job_id = None
++        self.live_ready = False
+
+     def schedule(self, envelope: JobEnvelope) -> None:
+         task = asyncio.create_task(self.run(envelope), name=f"job:{envelope.job_id}")
+@@ -151,6 +157,8 @@ class JobRunner:
+             await self.status(envelope.job_id, "failed", type(exc).__name__)
+
+     async def execute(self, envelope):
++        self.active_job_id = envelope.job_id
++        self.live_ready = False
+         engine = None
+         session = None
+         try:
+@@ -161,6 +169,9 @@ class JobRunner:
+                 Target(envelope.target_url, envelope.viewport_width, envelope.viewport_height),
+                 Credentials(envelope.credentials),
+             )
++            self.live_ready = True
++            if hasattr(session, "set_preview"):
++                session.set_preview(lambda page: self.browser_preview.publish(envelope.job_id, page))
+             requirements = tuple(to_requirement_snapshot(r) for r in envelope.requirements)
+             await engine.survey(session, requirements)
+             sink = evidence_sink(self.config, self, envelope.job_id)
+@@ -172,6 +183,9 @@ class JobRunner:
+                     "outcome": asdict(outcome),
+                 })
+         finally:
++            # Revoke the viewer before the next job can acquire this desktop.
++            self.active_job_id = None
++            self.live_ready = False
+             # Attempt both closes even when the first fails; bound each cleanup.
+             try:
+                 if session is not None:
+diff --git a/app/jobs/store.py b/app/jobs/store.py
+index 893fd9a..cbae76a 100644
+--- a/app/jobs/store.py
++++ b/app/jobs/store.py
+@@ -45,4 +45,5 @@ def new_job(envelope: JobEnvelope, cipher=None) -> Job:
+
+ def job_status(sessions, job_id):
+     with sessions() as db:
+-        return db.get(Job, job_id).status
++        job = db.get(Job, job_id)
++        return job.status if job is not None else None
+diff --git a/app/main.py b/app/main.py
+index 644ae00..24691d0 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -1,7 +1,7 @@
+ import asyncio
+ from contextlib import asynccontextmanager
+
+-from fastapi import Depends, FastAPI, HTTPException, Request, status
++from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, status
+ from fastapi.exceptions import RequestValidationError
+ from fastapi.responses import JSONResponse
+ from sqlalchemy import create_engine
+@@ -26,6 +26,9 @@ def create_app(config=None, sessions=None, engine_factory=build_engine, callback
+     @asynccontextmanager
+     async def lifespan(application):
+         resolved = config or settings()
++        from app.live_display import LiveDisplay
++        application.state.live_display = LiveDisplay(resolved.browser_live_view)
++        await application.state.live_display.start()
+         db_engine = None
+         factory = sessions
+         if factory is None:
+@@ -47,6 +50,7 @@ def create_app(config=None, sessions=None, engine_factory=build_engine, callback
+             yield
+         finally:
+             await application.state.runner.shutdown()
++            await application.state.live_display.close()
+             await application.state.delivery.shutdown()
+             if db_engine is not None:
+                 await asyncio.to_thread(db_engine.dispose)
+@@ -101,6 +105,41 @@ def create_app(config=None, sessions=None, engine_factory=build_engine, callback
+         return {"job_id": envelope.job_id, "run_id": envelope.run_id,
+                 "duplicate": not created, "status": current}
+
++    @application.get("/v1/jobs/{job_id}/evidence/{evidence_id}", dependencies=[Depends(require_service_token)])
++    async def job_evidence(job_id: str, evidence_id: str, request: Request):
++        from app.jobs.evidence_reader import read_evidence
++        runner = request.app.state.runner
++        try:
++            result = await asyncio.to_thread(read_evidence, runner.sessions, runner.browser_preview.bucket, job_id, evidence_id)
++        except OperationError:
++            raise
++        except Exception:
++            raise HTTPException(503, "Evidence storage is temporarily unavailable.") from None
++        return JSONResponse(result, headers={"Cache-Control": "private, no-store"})
++
++    @application.websocket("/v1/jobs/{job_id}/browser-live")
++    async def browser_live(websocket: WebSocket, job_id: str):
++        from app.live_browser import serve_live_browser
++        await serve_live_browser(websocket, job_id)
++
++    @application.get("/v1/jobs/{job_id}/browser-preview", dependencies=[Depends(require_service_token)])
++    async def browser_preview(job_id: str, request: Request):
++        runner = request.app.state.runner
++        current = await asyncio.to_thread(job_status, runner.sessions, job_id)
++        if current is None:
++            raise HTTPException(404, "Job not found.")
++        try:
++            frame = await asyncio.to_thread(runner.browser_preview.read, job_id)
++            if frame is not None and not frame.get("rendered"):
++                frame = None  # Legacy preview captured before the page rendered.
++            if frame is None:
++                from app.jobs.evidence_reader import latest_screenshot
++                frame = await asyncio.to_thread(latest_screenshot, runner.sessions, runner.browser_preview.bucket, job_id)
++        except Exception:
++            raise HTTPException(503, "Browser preview is temporarily unavailable.") from None
++        return JSONResponse({"job_id": job_id, "status": current, "frame": frame},
++                            headers={"Cache-Control": "private, no-store"})
++
+     @application.post("/v1/jobs/{job_id}/cancel", dependencies=[Depends(require_service_token)])
+     async def cancel_job(job_id: str, request: Request) -> dict:
+         runner = request.app.state.runner
+diff --git a/cloudbuild.yaml b/cloudbuild.yaml
+index c7557cd..2cf495d 100644
+--- a/cloudbuild.yaml
++++ b/cloudbuild.yaml
+@@ -22,8 +22,11 @@ steps:
+       - '${_SERVICE}'
+       - '--image=${_IMAGE}:${COMMIT_SHA}'
+       - '--region=${_REGION}'
+-      - '--update-env-vars=^@^ENGINE=mvp@PGOPTIONS=-c search_path=aiservice,public@AI_MODEL=gpt-4o-mini@MAX_CONCURRENT_JOBS=1@JOB_TIMEOUT_SECONDS=1800@EVIDENCE_SINK=gcs@GCS_EVIDENCE_BUCKET=blindspot-512322-evidence@EXTRACTION_MODEL=gpt-4o-mini@VERIFICATION_ENABLED=true'
++      - '--update-env-vars=^@^ENGINE=mvp@BROWSER_LIVE_VIEW=true@BROWSER_SLOW_MO_MS=250@PGOPTIONS=-c search_path=aiservice,public@AI_MODEL=gpt-4o-mini@MAX_CONCURRENT_JOBS=1@JOB_TIMEOUT_SECONDS=1800@EVIDENCE_SINK=gcs@GCS_EVIDENCE_BUCKET=blindspot-512322-evidence@EXTRACTION_MODEL=gpt-4o-mini@VERIFICATION_ENABLED=true'
+       - '--update-secrets=DATABASE_URL=DATABASE_URL:latest,SERVICE_TOKEN=AISERVICE_SERVICE_TOKEN:latest,AI_API_KEY=AISERVICE_OPENAI_API_KEY:latest,CALLBACK_ENCRYPTION_KEY=AISERVICE_CALLBACK_ENCRYPTION_KEY:latest,EXTRACTION_API_KEY=AISERVICE_OPENAI_API_KEY:latest'
++      - --max-instances=1
++      - --timeout=3600
++      - --session-affinity
+       - --quiet
+
+ options:
+diff --git a/engines/mvp/browser.py b/engines/mvp/browser.py
+index 3b5313f..920fb54 100644
+--- a/engines/mvp/browser.py
++++ b/engines/mvp/browser.py
+@@ -23,6 +23,7 @@ question above: it needs no raw-socket relay, just a second interception
+ point in the same page.
+ """
+ import asyncio
++import os
+ from urllib.parse import urlsplit
+
+ from engines.base import Credentials, Target
+@@ -126,8 +127,25 @@ class MvpSession:
+         self.observation_sequence = 0
+         self.discovery_hint = ""
+         self.recording_started_at = None
++        self.preview_callback = None
++        self.preview_tasks = set()
++        self.preview_lock = asyncio.Lock()
+         self.auth_evidence = {"method": "credentials" if state else "none", "login_completed": bool(state), "isolated_session_verified": False}
+
++    def set_preview(self, callback):
++        # Installed only after prepare() has finished authenticating.
++        self.preview_callback = callback
++
++    async def _preview(self, page):
++        while not page.is_closed():
++            try:
++                if page.url.startswith(("https://", "http://")) and not self.preview_lock.locked():
++                    async with self.preview_lock:
++                        await self.preview_callback(page)
++            except Exception:
++                pass  # Preview failures must never change the test outcome.
++            await asyncio.sleep(1.5)
++
+     async def open_context(self):
+         """A fresh context per requirement, carrying login forward via storage_state."""
+         kwargs = {"service_workers": "block", "accept_downloads": False, "viewport": self.viewport}
+@@ -144,6 +162,10 @@ class MvpSession:
+         page = await context.new_page()
+         page.on("dialog", lambda dialog: asyncio.ensure_future(dialog.dismiss()))
+         await _attach_cdp_policy(context, page, self.policy)
++        if self.preview_callback is not None:
++            task = asyncio.create_task(self._preview(page))
++            self.preview_tasks.add(task)
++            task.add_done_callback(self.preview_tasks.discard)
+         return context, page
+
+     async def open_landing(self, page) -> None:
+@@ -215,6 +237,10 @@ class MvpSession:
+         return candidate
+
+     async def close(self) -> None:
++        for task in tuple(self.preview_tasks):
++            task.cancel()
++        if self.preview_tasks:
++            await asyncio.gather(*tuple(self.preview_tasks), return_exceptions=True)
+         try:
+             await asyncio.wait_for(self.browser.close(), 10)
+         except Exception:
+@@ -234,9 +260,15 @@ async def open_session(target: Target, credentials: Credentials) -> MvpSession:
+     async with asyncio.timeout(PREPARE_TIMEOUT_SECONDS):
+         playwright = await async_playwright().start()
+         try:
+-            browser = await playwright.chromium.launch(headless=True, args=["--no-proxy-server"])
++            live = os.environ.get("BROWSER_LIVE_VIEW", "").lower() in {"1", "true", "yes"}
++            slow_mo = int(os.environ.get("BROWSER_SLOW_MO_MS", "250")) if live else 0
++            allowed = {'PATH', 'HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'DISPLAY', 'TMPDIR', 'PLAYWRIGHT_BROWSERS_PATH', 'FONTCONFIG_PATH', 'FONTCONFIG_FILE'}
++            browser_env = {key: value for key, value in os.environ.items() if key in allowed}
++            browser = await playwright.chromium.launch(headless=not live, slow_mo=slow_mo, env=browser_env,
++                args=["--no-proxy-server", "--window-position=0,0", "--window-size=1940,1220"])
+             try:
+                 state = None
++                landing_url = target.url
+                 context = await browser.new_context(
+                     service_workers="block", accept_downloads=False,
+                     viewport={"width": target.viewport_width, "height": target.viewport_height},
+@@ -254,7 +286,8 @@ async def open_session(target: Target, credentials: Credentials) -> MvpSession:
+                     await policy.check(target.url, "GET", True)
+                     await page.goto(target.url, wait_until="domcontentloaded")
+                     if await _login(page, credentials):
+-                        state = await context.storage_state()
++                        state = await context.storage_state(indexed_db=True)
++                        landing_url = page.url
+                 finally:
+                     await context.close()
+             except BaseException:
+@@ -263,4 +296,6 @@ async def open_session(target: Target, credentials: Credentials) -> MvpSession:
+         except BaseException:
+             await playwright.stop()
+             raise
+-    return MvpSession(playwright, browser, policy, redactor, target, state=state)
++    session = MvpSession(playwright, browser, policy, redactor, target, state=state)
++    session.target_url = landing_url
++    return session
+diff --git a/pyproject.toml b/pyproject.toml
+index e51da8f..b89677d 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -15,6 +15,7 @@ dependencies = [
+     "pydantic>=2.13,<3",
+     "python-dotenv",
+     "httpx",
++    "websockets>=15,<18",
+     "cryptography",
+     "pypdf>=5,<7",
+     "google-cloud-storage>=3.17,<4",
+diff --git a/app/jobs/browser_preview.py b/app/jobs/browser_preview.py
+new file mode 100644
+index 0000000..d063ab7
+--- /dev/null
++++ b/app/jobs/browser_preview.py
+@@ -0,0 +1,60 @@
++"""Latest post-login browser frame, private and scoped to one execution job."""
++import asyncio
++import base64
++import hashlib
++import json
++from collections import OrderedDict
++from datetime import datetime, timezone
++from urllib.parse import urlsplit, urlunsplit
++
++
++class BrowserPreviewStore:
++    def __init__(self, config, bucket=None):
++        self.bucket = bucket
++        if self.bucket is None and config.evidence_sink == "gcs" and config.gcs_evidence_bucket:
++            from google.cloud import storage
++            self.bucket = storage.Client().bucket(config.gcs_evidence_bucket)
++        self.frames = OrderedDict()
++
++    @staticmethod
++    def key(job_id):
++        return "browser-preview/" + hashlib.sha256(job_id.encode()).hexdigest() + "/latest.json"
++
++    def _write(self, job_id, frame):
++        if self.bucket is not None:
++            blob = self.bucket.blob(self.key(job_id))
++            blob.cache_control = "private, no-store"
++            blob.upload_from_string(json.dumps(frame), content_type="application/json", timeout=5, retry=None)
++        else:
++            self.frames[job_id] = frame
++            self.frames.move_to_end(job_id)
++            while len(self.frames) > 32:
++                self.frames.popitem(last=False)
++
++    async def publish(self, job_id, page):
++        # Navigation can set page.url before React has rendered anything.
++        state_script = "() => document.readyState === 'complete' && document.body?.innerText.trim() ? location.href + document.body.innerText.slice(0, 10000) : null"
++        before = await page.evaluate(state_script)
++        if before is None:
++            return
++        data = await page.screenshot(type="jpeg", quality=45, full_page=False,
++                                     mask=[page.locator('input[type="password"],input[type="email"]')], timeout=2000)
++        if await page.evaluate(state_script) != before or len(data) > 1_000_000:
++            return
++        parsed = urlsplit(page.url)
++        frame = {"captured_at": datetime.now(timezone.utc).isoformat(),
++                 "page_url": urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", "")),
++                 "media_type": "image/jpeg", "rendered": True, "source": "live", "image_base64": base64.b64encode(data).decode()}
++        await asyncio.to_thread(self._write, job_id, frame)
++
++    def read(self, job_id):
++        if self.bucket is None:
++            return self.frames.get(job_id)
++        from google.api_core.exceptions import NotFound
++        try:
++            raw = self.bucket.blob(self.key(job_id)).download_as_bytes(timeout=5, retry=None)
++        except NotFound:
++            return None
++        if len(raw) > 1_500_000:
++            raise ValueError("Browser frame exceeds limit")
++        return json.loads(raw)
+diff --git a/app/jobs/evidence_reader.py b/app/jobs/evidence_reader.py
+new file mode 100644
+index 0000000..81b563d
+--- /dev/null
++++ b/app/jobs/evidence_reader.py
+@@ -0,0 +1,70 @@
++"""Read only evidence explicitly recorded for the requested execution job."""
++import base64
++import hashlib
++from uuid import UUID
++
++from sqlalchemy import or_, select
++
++from app.jobs.models import OutboxEntry
++from app.operations.errors import OperationError
++
++MAX_BYTES = 10 * 1024 * 1024
++
++
++def read_evidence(sessions, bucket, job_id, evidence_id):
++    try:
++        normalized = UUID(evidence_id).hex
++    except ValueError:
++        raise OperationError("Evidence not found.", 404) from None
++    with sessions() as db:
++        entry = db.scalar(select(OutboxEntry).where(
++            OutboxEntry.job_id == job_id, OutboxEntry.kind == "evidence",
++            or_(OutboxEntry.id == evidence_id, OutboxEntry.payload["storage_key"].as_string().in_([evidence_id, normalized]))))
++        if entry is None:
++            raise OperationError("Evidence not found in this job.", 404)
++        payload = dict(entry.payload)
++    kind = payload.get("kind")
++    media = {"screenshot": "image/png", "page_text": "text/plain; charset=utf-8", "log": "text/plain; charset=utf-8"}.get(kind)
++    if media is None:
++        raise OperationError("Unsupported evidence type.", 415)
++    key = payload.get("storage_key")
++    if key:
++        if bucket is None:
++            raise OperationError("Evidence storage is unavailable.", 503)
++        from google.api_core.exceptions import NotFound
++        try:
++            blob = bucket.blob(key)
++            blob.reload(timeout=5)
++            if blob.size is None or blob.size > MAX_BYTES:
++                raise OperationError("Evidence exceeds size limit.", 413)
++            data = blob.download_as_bytes(timeout=10)
++        except NotFound:
++            raise OperationError("Evidence not found.", 404) from None
++    elif kind == "screenshot":
++        data = base64.b64decode(payload.get("base64", ""), validate=True)
++    else:
++        data = payload.get("text", "").encode()
++    if not data or len(data) > MAX_BYTES:
++        raise OperationError("Invalid evidence size.", 413)
++    digest = hashlib.sha256(data).hexdigest()
++    if payload.get("sha256") and digest != payload["sha256"]:
++        raise OperationError("Evidence integrity check failed.", 502)
++    return {"id": evidence_id, "job_id": job_id, "type": kind, "media_type": media,
++            "content_base64": base64.b64encode(data).decode(), "sha256": digest,
++            "captured_at": payload.get("captured_at")}
++
++
++def latest_screenshot(sessions, bucket, job_id):
++    with sessions() as db:
++        entry = db.scalar(select(OutboxEntry).where(
++            OutboxEntry.job_id == job_id, OutboxEntry.kind == "evidence",
++            OutboxEntry.payload["kind"].as_string() == "screenshot")
++            .order_by(OutboxEntry.payload["captured_at"].as_string().desc()).limit(1))
++        if entry is None:
++            return None
++        identifier = entry.payload.get("storage_key") or entry.id
++    evidence = read_evidence(sessions, bucket, job_id, identifier)
++    if len(evidence["content_base64"]) > 1_400_000 or not evidence.get("captured_at"):
++        return None
++    return {"captured_at": evidence["captured_at"], "page_url": "", "media_type": evidence["media_type"],
++            "image_base64": evidence["content_base64"], "source": "checkpoint"}
+diff --git a/app/live_browser.py b/app/live_browser.py
+new file mode 100644
+index 0000000..12274ce
+--- /dev/null
++++ b/app/live_browser.py
+@@ -0,0 +1,56 @@
++"""Authenticated RFB relay. The desktop is visible only to its current job."""
++import asyncio
++from secrets import compare_digest
++
++from fastapi import WebSocket
++from starlette.websockets import WebSocketDisconnect
++from websockets.asyncio.client import connect
++from websockets.exceptions import ConnectionClosed
++
++
++async def serve_live_browser(websocket: WebSocket, job_id: str):
++    runner = websocket.app.state.runner
++    authorization = websocket.headers.get('authorization', '')
++    supplied = authorization.removeprefix('Bearer ') if authorization.startswith('Bearer ') else ''
++    if not runner.config.service_token or not compare_digest(supplied.encode(), runner.config.service_token.encode()):
++        await websocket.close(code=4401)
++        return
++    if not websocket.app.state.live_display.ready:
++        await websocket.close(code=4503)
++        return
++    if runner.active_job_id != job_id or not runner.live_ready:
++        await websocket.close(code=4409)
++        return
++    tasks = []
++    try:
++        async with connect('ws://127.0.0.1:6080', subprotocols=['binary'], proxy=None, compression=None, max_size=16_000_000) as desktop:
++            await websocket.accept(subprotocol='binary')
++            async def upstream():
++                while True:
++                    message = await websocket.receive_bytes()
++                    if runner.active_job_id != job_id or not runner.live_ready:
++                        return
++                    await desktop.send(message)
++            async def downstream():
++                async for message in desktop:
++                    if runner.active_job_id != job_id or not runner.live_ready:
++                        return
++                    await websocket.send_bytes(message)
++            async def current_job():
++                while runner.active_job_id == job_id and runner.live_ready and websocket.app.state.live_display.ready:
++                    await asyncio.sleep(0.25)
++            tasks = [asyncio.create_task(f()) for f in (upstream, downstream, current_job)]
++            done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
++            for task in done:
++                task.result()
++    except (WebSocketDisconnect, ConnectionClosed, OSError, asyncio.CancelledError):
++        pass
++    finally:
++        for task in tasks:
++            task.cancel()
++        if tasks:
++            await asyncio.gather(*tasks, return_exceptions=True)
++        try:
++            await websocket.close()
++        except (RuntimeError, asyncio.CancelledError):
++            pass
+diff --git a/app/live_display.py b/app/live_display.py
+new file mode 100644
+index 0000000..0a901eb
+--- /dev/null
++++ b/app/live_display.py
+@@ -0,0 +1,67 @@
++"""v2's view-only Xvfb / x11vnc / websockify desktop, kept container-local."""
++import asyncio
++import os
++from pathlib import Path
++
++
++def display_commands():
++    return [
++        ['Xvfb', ':99', '-screen', '0', '1960x1260x24', '-nolisten', 'tcp'],
++        ['x11vnc', '-display', ':99', '-localhost', '-rfbport', '5900', '-nopw', '-viewonly', '-forever', '-shared', '-nosel', '-noxdamage'],
++        ['websockify', '--heartbeat=15', '127.0.0.1:6080', '127.0.0.1:5900'],
++    ]
++
++
++def display_environment():
++    allowed = {'PATH', 'HOME', 'LANG', 'LC_ALL', 'TZ', 'DISPLAY', 'TMPDIR', 'PLAYWRIGHT_BROWSERS_PATH', 'FONTCONFIG_PATH', 'FONTCONFIG_FILE'}
++    return {k: v for k, v in os.environ.items() if k in allowed}
++
++
++class LiveDisplay:
++    def __init__(self, enabled):
++        self.enabled = enabled
++        self.processes = []
++
++    async def start(self):
++        if not self.enabled:
++            return
++        os.environ['DISPLAY'] = ':99'
++        try:
++            for index, command in enumerate(display_commands()):
++                process = await asyncio.create_subprocess_exec(*command, env=display_environment(),
++                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
++                self.processes.append(process)
++                async with asyncio.timeout(15):
++                    while True:
++                        if process.returncode is not None:
++                            raise RuntimeError('Live display helper exited during startup')
++                        if index == 0:
++                            ready = Path('/tmp/.X11-unix/X99').exists()
++                        else:
++                            try:
++                                _, writer = await asyncio.open_connection('127.0.0.1', 5900 if index == 1 else 6080)
++                                writer.close(); await writer.wait_closed()
++                                ready = True
++                            except OSError:
++                                ready = False
++                        if ready:
++                            break
++                        await asyncio.sleep(0.1)
++        except BaseException:
++            await self.close()
++            raise
++
++    async def close(self):
++        for process in reversed(self.processes):
++            if process.returncode is None:
++                process.terminate()
++        for process in reversed(self.processes):
++            try:
++                await asyncio.wait_for(process.wait(), 5)
++            except asyncio.TimeoutError:
++                process.kill(); await process.wait()
++        self.processes.clear()
++
++    @property
++    def ready(self):
++        return self.enabled and len(self.processes) == 3 and all(p.returncode is None for p in self.processes)
+diff --git a/tests/test_browser_preview.py b/tests/test_browser_preview.py
+new file mode 100644
+index 0000000..919d375
+--- /dev/null
++++ b/tests/test_browser_preview.py
+@@ -0,0 +1,137 @@
++import asyncio
++import base64
++from types import SimpleNamespace
++
++import pytest
++
++from app.jobs.browser_preview import BrowserPreviewStore
++from engines.mvp.browser import MvpSession
++
++
++class Page:
++    url = "https://target.test/dashboard?token=hidden#private"
++    def locator(self, value):
++        assert value == 'input[type="password"],input[type="email"]'
++        return "password-fields"
++    async def evaluate(self, script):
++        return "stable visible page"
++    async def screenshot(self, **kwargs):
++        assert kwargs['mask'] == ['password-fields']
++        assert kwargs['full_page'] is False
++        return b'jpeg'
++
++
++async def test_frame_masks_passwords_and_omits_url_secrets():
++    store = BrowserPreviewStore(SimpleNamespace(evidence_sink='outbox'))
++    await store.publish('job-a', Page())
++    frame = store.read('job-a')
++    assert frame['page_url'] == 'https://target.test/dashboard'
++    assert base64.b64decode(frame['image_base64']) == b'jpeg'
++    assert store.read('job-b') is None
++
++
++async def test_memory_frames_are_bounded():
++    store = BrowserPreviewStore(SimpleNamespace(evidence_sink='outbox'))
++    for n in range(34):
++        await store.publish(str(n), Page())
++    assert len(store.frames) == 32
++    assert store.read('0') is None
++
++
++async def test_private_bucket_frame_shared_between_instances():
++    objects = {}
++    class Blob:
++        def __init__(self, key): self.key = key
++        def upload_from_string(self, data, **kwargs): objects[self.key] = data.encode()
++        def download_as_bytes(self, **kwargs): return objects[self.key]
++    bucket = SimpleNamespace(blob=Blob)
++    config = SimpleNamespace(evidence_sink='outbox')
++    writer, reader = BrowserPreviewStore(config, bucket), BrowserPreviewStore(config, bucket)
++    await writer.publish('job', Page())
++    assert reader.read('job')['media_type'] == 'image/jpeg'
++    assert 'browser-preview/' in next(iter(objects))
++
++
++async def test_capture_failure_does_not_fail_browser_session():
++    class PreviewPage:
++        url = 'https://target.test/'
++        def is_closed(self): return False
++    browser = SimpleNamespace()
++    session = MvpSession(None, browser, None, None, SimpleNamespace(url='https://target.test', viewport_width=800, viewport_height=600))
++    called = asyncio.Event()
++    async def broken(page):
++        called.set()
++        raise RuntimeError('storage temporarily unavailable')
++    session.set_preview(broken)
++    task = asyncio.create_task(session._preview(PreviewPage()))
++    await asyncio.wait_for(called.wait(), 1)
++    await asyncio.sleep(0)
++    assert not task.done()
++    task.cancel()
++    with pytest.raises(asyncio.CancelledError): await task
++
++
++async def test_endpoint_requires_token_and_checks_job_binding(database):
++    import httpx
++    from app.main import create_app
++    from app.jobs.models import Job
++    from tests.test_intake import config, HEADERS
++    app = create_app(config(), database, start_delivery=False)
++    with database.begin() as db:
++        db.add(Job(job_id='preview-job', run_id='run', status='running', envelope={}, engine='stub'))
++    async with app.router.lifespan_context(app):
++        await app.state.runner.browser_preview.publish('preview-job', Page())
++        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://test') as client:
++            path = '/v1/jobs/preview-job/browser-preview'
++            assert (await client.get(path)).status_code == 401
++            response = await client.get(path, headers=HEADERS)
++            assert response.status_code == 200
++            assert response.json()['job_id'] == 'preview-job'
++            assert response.json()['frame']['page_url'] == 'https://target.test/dashboard'
++            assert response.headers['Cache-Control'] == 'private, no-store'
++            assert (await client.get('/v1/jobs/missing/browser-preview', headers=HEADERS)).status_code == 404
++
++
++from tests.test_intake import database  # shared isolated SQLite fixture
++
++
++async def test_real_browser_captures_frame_and_stops_on_close(local_page):
++    from engines.base import Credentials, Target
++    from engines.mvp.browser import open_session
++    store = BrowserPreviewStore(SimpleNamespace(evidence_sink='outbox'))
++    session = await open_session(Target(local_page, 800, 600), Credentials({}))
++    assert session.preview_callback is None  # prepare/login is never streamed
++    session.set_preview(lambda page: store.publish('real-browser', page))
++    try:
++        context, page = await session.open_context()
++        await session.open_landing(page)
++        async with asyncio.timeout(8):
++            while store.read('real-browser') is None:
++                await asyncio.sleep(0.1)
++        frame = store.read('real-browser')
++        assert base64.b64decode(frame['image_base64']).startswith(b'\xff\xd8')
++        await context.close()
++    finally:
++        await session.close()
++    assert not session.preview_tasks
++
++
++from tests.test_mvp_engine import local_page
++
++
++async def test_blank_and_transition_frames_do_not_replace_visible_frame():
++    store = BrowserPreviewStore(SimpleNamespace(evidence_sink='outbox'))
++    await store.publish('job', Page())
++    original = store.read('job')
++    class Blank(Page):
++        async def evaluate(self, script): return None
++        async def screenshot(self, **kwargs): raise AssertionError('Blank page captured')
++    await store.publish('job', Blank())
++    assert store.read('job') is original
++    class Transition(Page):
++        calls = 0
++        async def evaluate(self, script):
++            self.calls += 1
++            return 'before' if self.calls == 1 else 'after'
++    await store.publish('job', Transition())
++    assert store.read('job') is original
+diff --git a/tests/test_evidence_reader.py b/tests/test_evidence_reader.py
+new file mode 100644
+index 0000000..2134e13
+--- /dev/null
++++ b/tests/test_evidence_reader.py
+@@ -0,0 +1,56 @@
++import base64
++import hashlib
++from types import SimpleNamespace
++from uuid import uuid4
++
++import pytest
++
++from app.jobs.evidence_reader import read_evidence
++from app.jobs.models import Job, OutboxEntry
++from app.operations.errors import OperationError
++from tests.test_intake import database
++
++
++def seed(database, payload):
++    key = uuid4().hex
++    with database.begin() as db:
++        db.add(Job(job_id='job-a', run_id='run', status='finished', envelope={}, engine='stub'))
++        db.flush()
++        db.add(OutboxEntry(id=str(uuid4()), job_id='job-a', kind='evidence', payload={'kind':'screenshot','storage_key':key,**payload}))
++    return key
++
++
++def test_gcs_screenshot_is_job_scoped_and_accepts_uuid_format(database):
++    content = b'screenshot-bytes'
++    key = seed(database, {'sha256':hashlib.sha256(content).hexdigest()})
++    blob = SimpleNamespace(size=len(content), reload=lambda **kw: None, download_as_bytes=lambda **kw: content)
++    bucket = SimpleNamespace(blob=lambda value: blob if value == key else None)
++    from uuid import UUID
++    evidence_id = str(UUID(key))
++    result = read_evidence(database, bucket, 'job-a', evidence_id)
++    assert result['id'] == evidence_id
++    assert base64.b64decode(result['content_base64']) == content
++    assert result['media_type'] == 'image/png'
++    with pytest.raises(OperationError) as error:
++        read_evidence(database, bucket, 'other-job', evidence_id)
++    assert error.value.status == 404
++
++
++def test_corrupt_evidence_is_rejected(database):
++    key = seed(database, {'sha256':'0'*64})
++    blob = SimpleNamespace(size=3, reload=lambda **kw: None, download_as_bytes=lambda **kw: b'bad')
++    with pytest.raises(OperationError) as error:
++        read_evidence(database, SimpleNamespace(blob=lambda key:blob), 'job-a', key)
++    assert error.value.status == 502
++
++
++def test_old_run_can_fall_back_to_its_recorded_screenshot(database):
++    from app.jobs.evidence_reader import latest_screenshot
++    content=b'checkpoint'
++    key=seed(database,{'captured_at':'2026-11-19T18:00:00+00:00'})
++    blob=SimpleNamespace(size=len(content),reload=lambda **kw:None,download_as_bytes=lambda **kw:content)
++    frame=latest_screenshot(database,SimpleNamespace(blob=lambda key:blob),'job-a')
++    assert frame['source']=='checkpoint'
++    assert frame['media_type']=='image/png'
++    assert base64.b64decode(frame['image_base64'])==content
++    assert latest_screenshot(database,None,'other-job') is None
+diff --git a/tests/test_mvp_authenticated_context.py b/tests/test_mvp_authenticated_context.py
+new file mode 100644
+index 0000000..6e14727
+--- /dev/null
++++ b/tests/test_mvp_authenticated_context.py
+@@ -0,0 +1,45 @@
++import threading
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++
++import pytest
++
++from engines.base import Credentials, Target
++from engines.mvp.browser import open_session
++
++
++@pytest.fixture
++def login_site():
++    class Handler(BaseHTTPRequestHandler):
++        def log_message(self, *args): pass
++        def do_GET(self):
++            self.send_response(200); self.send_header('Content-Type', 'text/html'); self.end_headers()
++            if self.path == '/dashboard':
++                html = '''<h1>Dashboard</h1><p id="session">Checking session</p><script>
++                const req=indexedDB.open('auth',1);req.onsuccess=()=>{
++                  const tx=req.result.transaction('users');const q=tx.objectStore('users').get('current');
++                  q.onsuccess=()=>document.querySelector('#session').textContent=q.result==='doctor'?'Session restored':'No session';
++                };</script>'''
++            else:
++                html = '''<form><input type="email"><input type="password"><button type="submit">Sign in</button></form><script>
++                document.querySelector('form').onsubmit=e=>{e.preventDefault();const req=indexedDB.open('auth',1);
++                req.onupgradeneeded=()=>req.result.createObjectStore('users');req.onsuccess=()=>{
++                const tx=req.result.transaction('users','readwrite');tx.objectStore('users').put('doctor','current');
++                tx.oncomplete=()=>location.href='/dashboard';};};</script>'''
++            self.wfile.write(html.encode())
++    server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
++    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
++    yield f'http://127.0.0.1:{server.server_port}/login'
++    server.shutdown();thread.join();server.server_close()
++
++
++async def test_new_test_context_reuses_authenticated_url_and_indexeddb(login_site):
++    session=await open_session(Target(login_site,800,600),Credentials({'username':'doctor@example.test','password':'test','success_selector':'h1'}))
++    try:
++        assert session.target_url.endswith('/dashboard')
++        context,page=await session.open_context()
++        await session.open_landing(page)
++        await page.get_by_text('Session restored',exact=True).wait_for()
++        assert await page.locator('input[type=password]').count()==0
++        await context.close()
++    finally:
++        await session.close()
+diff --git a/tests/test_live_desktop.py b/tests/test_live_desktop.py
+new file mode 100644
+index 0000000..7c6b7a1
+--- /dev/null
++++ b/tests/test_live_desktop.py
+@@ -0,0 +1,61 @@
++import asyncio
++from types import SimpleNamespace
++from unittest.mock import AsyncMock, Mock
++
++from app.live_browser import serve_live_browser
++from app.live_display import display_commands, display_environment
++
++
++def socket_for(token='Bearer secret', job='job-a', ready=True):
++    runner=SimpleNamespace(config=SimpleNamespace(service_token='secret'),active_job_id=job,live_ready=ready)
++    socket=SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(runner=runner,live_display=SimpleNamespace(ready=True))),
++        headers={'authorization':token},close=AsyncMock(),accept=AsyncMock(),send_bytes=AsyncMock(),receive_bytes=AsyncMock())
++    return socket,runner
++
++
++def test_v2_display_stays_local_and_enforces_view_only(monkeypatch):
++    commands=display_commands()
++    assert commands[0][:2]==['Xvfb',':99']
++    assert '-viewonly' in commands[1] and '-localhost' in commands[1] and '-nosel' in commands[1]
++    assert commands[2][-2:]==['127.0.0.1:6080','127.0.0.1:5900']
++    monkeypatch.setenv('AI_API_KEY','must-not-reach-browser')
++    monkeypatch.setenv('DISPLAY',':99')
++    assert 'AI_API_KEY' not in display_environment()
++    assert display_environment()['DISPLAY']==':99'
++
++
++async def test_missing_service_auth_never_exposes_display(monkeypatch):
++    ws,_=socket_for(token='secret')
++    upstream=Mock();monkeypatch.setattr('app.live_browser.connect',upstream)
++    await serve_live_browser(ws,'job-a')
++    ws.close.assert_awaited_once_with(code=4401)
++    upstream.assert_not_called()
++
++
++async def test_different_job_and_unready_browser_cannot_view_display(monkeypatch):
++    upstream=Mock();monkeypatch.setattr('app.live_browser.connect',upstream)
++    for job,ready in [('other-job',True),('job-a',False)]:
++        ws,_=socket_for(job=job,ready=ready)
++        await serve_live_browser(ws,'job-a')
++        ws.close.assert_awaited_once_with(code=4409)
++    upstream.assert_not_called()
++
++
++async def test_stream_stops_before_another_jobs_frame(monkeypatch):
++    ws,runner=socket_for()
++    async def receive():
++        await asyncio.Event().wait()
++    ws.receive_bytes.side_effect=receive
++    class Desktop:
++        async def __aenter__(self): return self
++        async def __aexit__(self,*args): pass
++        async def send(self,message): pass
++        async def __aiter__(self):
++            yield b'current-job-frame'
++            runner.active_job_id='other-job'
++            yield b'other-job-frame'
++    monkeypatch.setattr('app.live_browser.connect',lambda *a,**kw:Desktop())
++    await serve_live_browser(ws,'job-a')
++    ws.accept.assert_awaited_once_with(subprotocol='binary')
++    ws.send_bytes.assert_awaited_once_with(b'current-job-frame')
++    ws.close.assert_awaited_once()
