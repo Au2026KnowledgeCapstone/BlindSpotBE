@@ -21,6 +21,9 @@ Start the development server at http://127.0.0.1:8000:
 make run
 ```
 
+`make run` initializes the environment if Uvicorn is missing. Use
+`PORT=8080 make run` to select a different port.
+
 To use the environment directly in your shell:
 
 ```bash
@@ -136,3 +139,9 @@ operational recovery, and A1 protocol behavior. All 17 assigned routes in main
 are implemented; [assigned endpoint completion](docs/assigned-endpoints.md)
 explains document extraction, private downloads, browser login verification,
 configuration and the required aiservice companion branch.
+
+## Historical planning
+
+The documents in `docs/timebox4-planning/` describe the October 28, 2026
+assessment before the FastAPI migration. They are historical planning notes;
+use the current implementation and authentication documentation for current behavior.

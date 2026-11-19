@@ -1,5 +1,6 @@
 PYTHON ?= python3
 VENV ?= .venv
+PORT ?= 8000
 
 .PHONY: initialize run test test-integration openapi
 
@@ -7,8 +8,11 @@ initialize:
 	$(PYTHON) -m venv $(VENV)
 	$(VENV)/bin/python -m pip install -e '.[test]'
 
-run:
-	$(VENV)/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000
+run: $(VENV)/bin/uvicorn
+	$(VENV)/bin/uvicorn main:app --reload --host 0.0.0.0 --port $(PORT)
+
+$(VENV)/bin/uvicorn:
+	$(MAKE) initialize
 
 test:
 	$(VENV)/bin/python -m pip install -q -e '.[test]'
