@@ -35,6 +35,7 @@ from app.schemas.auth import (
 from app.schemas.common import Acknowledged, ErrorResponse, Page
 from app.schemas.environments import Environment, EnvironmentCreate, EnvironmentUpdate
 from app.schemas.identity import (
+    Dashboard,
     Invitation,
     InvitationCreate,
     Member,
@@ -54,7 +55,7 @@ from app.schemas.requirements import (
     RequirementUpdate,
 )
 from app.schemas.runs import Result, Run, RunCreate, RunUsage
-from app.services import resources, analysis, callbacks, events, imports, private_storage, verification
+from app.services import resources, analysis, callbacks, dashboard, events, imports, private_storage, verification
 from app.services.workspace_routes import router as workspace_router
 from app.services.auth import (
     complete_pkce_callback,
@@ -477,6 +478,21 @@ def stream_run_events(db: Db, context: ProjectAccess, eid: str, runid: str, requ
 )
 def run_usage(db: Db, context: ProjectAccess, eid: str, runid: str) -> RunUsage:
     return analysis.usage_out(db, analysis.get_run(db, context, eid, runid))
+
+
+@app.get(
+    "/projects/{pid}/dashboard",
+    tags=["Analysis"],
+    summary="Requirement coverage and run outcomes for a project",
+    response_model=Dashboard,
+    description=(
+        "Grouped in the database, so a project summary costs one request instead of one "
+        "per run. Coverage counts the latest result per requirement; run outcomes count "
+        "each completed run once, by its worst result. Spans every environment."
+    ),
+)
+def project_dashboard(db: Db, context: ProjectAccess) -> Dashboard:
+    return dashboard.project_dashboard(db, context)
 
 
 # ---------------------------------------------------------------------------
