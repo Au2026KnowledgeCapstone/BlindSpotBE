@@ -24,14 +24,7 @@ _SUBDIR = {"document": "documents", "evidence": "evidence"}
 
 
 class ObjectStore(Protocol):
-    def put(
-        self,
-        data: bytes,
-        *,
-        metadata: dict[str, str] | None = None,
-        content_type: str = "application/octet-stream",
-    ) -> str: ...
-
+    def put(self, data: bytes, *, metadata: dict[str, str] | None = None) -> str: ...
     def read(self, key: str, expected_sha: str | None = None) -> bytes: ...
     def present(self, key: str) -> None: ...
     def remove(self, key: str) -> None: ...
@@ -52,25 +45,14 @@ class LocalStore:
             raise ServiceError("not_found", "Private object is unavailable.", 404)
         return path
 
-def put(
-    self,
-    data: bytes,
-    *,
-    metadata: dict[str, str] | None = None,
-    content_type: str = "application/octet-stream",
-) -> str:
-    if not data or len(data) > MAX_OBJECT_BYTES:
-        raise ServiceError(
-            "invalid_upload",
-            "Objects must contain 1 byte to 10 MiB.",
-            413,
-        )
-
-    key = uuid4().hex
-
-    with self.path(key).open("xb") as output:
-        os.chmod(output.name, 0o600)
-        output.write(data)
+    def put(self, data: bytes, *, metadata: dict[str, str] | None = None) -> str:
+        if not data or len(data) > MAX_OBJECT_BYTES:
+            raise ServiceError("invalid_upload", "Objects must contain 1 byte to 10 MiB.", 413)
+        key = uuid4().hex
+        with self.path(key).open("xb") as output:
+            os.chmod(output.name, 0o600)
+            output.write(data)
+        return key
 
     def remove(self, key: str) -> None:
         self.path(key).unlink(missing_ok=True)
@@ -102,43 +84,22 @@ class GCSStore:
             raise ServiceError("not_found", "Private object is unavailable.", 404)
         return self._bucket.blob(key)
 
-    def put(
-    self,
-    data: bytes,
-    *,
-    metadata: dict[str, str] | None = None,
-    content_type: str = "application/octet-stream",
-) -> str:
+    def put(self, data: bytes, *, metadata: dict[str, str] | None = None) -> str:
         if not data or len(data) > MAX_OBJECT_BYTES:
-            raise ServiceError(
-                "invalid_upload",
-                "Objects must contain 1 byte to 10 MiB.",
-                413,
-            )
-
+            raise ServiceError("invalid_upload", "Objects must contain 1 byte to 10 MiB.", 413)
         key = uuid4().hex
         blob = self._bucket.blob(key)
-
         if metadata:
             blob.metadata = metadata
-
         try:
-            blob.upload_from_string(
-                data,
-                content_type=content_type,
-                if_generation_match=0,
-            )
-
-        except (
-            api_exceptions.GoogleAPIError,
-            auth_exceptions.GoogleAuthError,
-        ) as exc:
-            raise ServiceError(
-                "storage_unavailable",
-                "Private storage is unavailable.",
-                503,
-            ) from exc
-
+            # if_generation_match=0 is the bucket equivalent of "xb": the
+            # write fails rather than silently overwriting an existing key.
+            blob.upload_from_string(data, content_type="application/octet-stream", if_generation_match=0)
+        except (api_exceptions.GoogleAPIError, auth_exceptions.GoogleAuthError) as exc:
+            # A fresh uuid4 key colliding or a NotFound here both mean the
+            # bucket/credential is misconfigured, not that "the object is
+            # gone" -- there was never an object to be gone.
+            raise ServiceError("storage_unavailable", "Private storage is unavailable.", 503) from exc
         return key
 
     def read(self, key: str, expected_sha: str | None = None) -> bytes:
