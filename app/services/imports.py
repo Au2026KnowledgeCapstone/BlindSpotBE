@@ -71,7 +71,14 @@ async def create_import(db, context, request, brd, srs, design_spec=None):
             db.add(row)
             db.flush()
             for file in files:
-                storage_key = store.put(file["content"])
+                storage_key = store.put(
+                    file["content"],
+                    content_type=file["content_type"],
+                    metadata={
+                        "sha256": file["sha256"],
+                        "document_role": file["role"],
+                    },
+                )
                 stored.append(storage_key)
                 db.add(ImportDocument(id=uid(file["id"]), import_id=row.id, role=file["role"], filename=file["filename"],
                                       storage_key=storage_key, sha256=file["sha256"]))
