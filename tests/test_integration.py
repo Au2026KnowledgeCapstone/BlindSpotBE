@@ -24,7 +24,7 @@ from app.models.integration import Dispatch, Callback
 from app.schemas.requirements import RequirementCreate, RequirementUpdate, ApprovalRequest
 from app.schemas.runs import RunCreate
 from app.schemas.internal import AIUsageReport
-from app.services import resources, analysis, callbacks
+from app.services import resources, analysis, callbacks, dashboard
 from app.services.dispatch import dispatch_once
 
 
@@ -367,3 +367,75 @@ def test_higher_execution_attempt_requires_a_new_product_run(setup):
     metering = usage(envelope)
     metering["attempt"] = 2
     assert send(s, run, envelope, "ai-usage", metering).status_code == 409
+
+
+def _requirement(s, title, *, approved=True):
+    requirement = resources.create_requirement(s.db, s.context, RequirementCreate(title=title, acceptance_criteria=[{"text": "Works"}]))
+    if approved:
+        resources.approve_requirement(s.db, s.context, requirement["id"], ApprovalRequest())
+    return requirement["id"]
+
+
+def _completed_run(s, number, verdicts, *, minutes, status="completed"):
+    """A finished run carrying one result per (requirement, verdict) pair.
+    Inserted directly: the dashboard aggregates stored rows, and building these
+    through the executor would obscure which verdict belongs to which run."""
+    finished = analysis.now() + timedelta(minutes=minutes)
+    run = AnalysisRun(id=uuid4(), project_id=resources.uid(s.context.project_id), environment_id=resources.uid(s.eid),
+        run_number=number, engine="stub", status=status, requirement_snapshots=[], requested_by=resources.uid(s.context.user.user_id),
+        queued_at=finished, started_at=finished, completed_at=finished if status == "completed" else None)
+    s.db.add(run)
+    s.db.flush()
+    for requirement_id, verdict in verdicts:
+        s.db.add(Result(id=uuid4(), project_id=run.project_id, analysis_run_id=run.id, requirement_id=resources.uid(requirement_id),
+            verdict=verdict, classification="criteria_satisfied" if verdict == "pass" else "criteria_violated",
+            observed_behavior="observed"))
+    s.db.commit()
+    return run
+
+
+def test_dashboard_counts_latest_result_per_requirement_and_worst_result_per_run(setup):
+    s = setup
+    # s.rid is already approved by the fixture. Two more approved, one draft.
+    second, third = _requirement(s, "Checkout"), _requirement(s, "Search")
+    _requirement(s, "Unapproved", approved=False)
+    # An earlier run failed s.rid; a later one passed it. Only the later counts.
+    _completed_run(s, 1, [(s.rid, "fail"), (second, "fail")], minutes=1)
+    _completed_run(s, 2, [(s.rid, "pass")], minutes=2)
+    _completed_run(s, 3, [(third, "inconclusive")], minutes=3)
+
+    body = s.client.get(f"/projects/{s.context.project_id}/dashboard")
+    assert body.status_code == 200, body.text
+    counts = body.json()
+
+    # Four requirements, three approved; `third` is inconclusive, `second` failed.
+    assert counts["requirements"] == {
+        "total_requirements": 4, "approved_requirements": 3,
+        "requirements_tested": 3, "requirements_passed": 1, "requirements_failed": 1,
+        "requirements_inconclusive": 1, "requirements_untested": 1,
+    }
+    # Run 1 holds a fail so it fails outright; run 3 is inconclusive.
+    assert counts["runs"] == {"total_runs": 3, "runs_passed": 1, "runs_failed": 1, "runs_inconclusive": 1}
+
+
+def test_dashboard_ignores_unfinished_runs_and_scopes_to_the_project(setup):
+    s = setup
+    other = uuid4()
+    s.db.add(Project(id=other, owner_id=resources.uid(s.context.user.user_id), name="Other", description="", created_at=analysis.now()))
+    s.db.commit()
+    # A queued run has no outcome to report, and must not count as inconclusive.
+    _completed_run(s, 1, [(s.rid, "pass")], minutes=1, status="queued")
+    body = s.client.get(f"/projects/{s.context.project_id}/dashboard").json()
+    assert body["runs"] == {"total_runs": 0, "runs_passed": 0, "runs_failed": 0, "runs_inconclusive": 0}
+    # A queued run's results still have no completed_at, so coverage stays empty.
+    assert body["requirements"]["requirements_tested"] == 0
+    assert body["requirements"]["requirements_untested"] == 1
+
+    # The same figures for a project with nothing in it are zeroes, not an error.
+    empty = ProjectContext(str(other), SimpleNamespace(user_id=s.context.user.user_id), "owner")
+    assert dashboard.project_dashboard(s.db, empty) == {
+        "requirements": {"total_requirements": 0, "approved_requirements": 0, "requirements_tested": 0,
+                         "requirements_passed": 0, "requirements_failed": 0, "requirements_inconclusive": 0,
+                         "requirements_untested": 0},
+        "runs": {"total_runs": 0, "runs_passed": 0, "runs_failed": 0, "runs_inconclusive": 0},
+    }
