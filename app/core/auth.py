@@ -76,12 +76,18 @@ def set_session(response: Response, data: dict, settings: AuthSettings) -> User:
     return session.user
 
 
-async def csrf_guard(
-    request: Request,
-    x_csrf_protection: Annotated[
-        str | None, Header(description="Required value: 1. Also send an allowed Origin and application/json.")
-    ] = None,
-) -> None:
+JSON_ONLY = frozenset({"application/json"})
+# Requiring a non-safelisted content type is defence in depth, not the boundary:
+# X-CSRF-Protection already rejects anything an HTML form could send, because a
+# form cannot set a header. Document import is declared with UploadFile, so a
+# browser has to send multipart — product routes accept it. /auth/* keeps the
+# stricter set, where nothing legitimately posts a file.
+JSON_OR_UPLOAD = frozenset({"application/json", "multipart/form-data"})
+
+
+# Not a dependency: taking `allowed` as a parameter on csrf_guard itself would
+# publish it as a query parameter, letting a caller widen the check from the URL.
+async def _csrf_check(request: Request, x_csrf_protection: str | None, allowed: frozenset[str]) -> None:
     # Exact Origin + a non-simple custom header is an explicit CSRF protocol,
     # including before login. CORS alone is not the security boundary.
     settings = request.app.state.auth_settings
@@ -91,8 +97,17 @@ async def csrf_guard(
         or (request.headers.get("sec-fetch-site") == "cross-site" and settings.same_site != "none")
     ):
         raise AuthError(403, "Origin or CSRF check failed")
-    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() not in allowed:
         raise AuthError(415, "Use application/json")
+
+
+async def csrf_guard(
+    request: Request,
+    x_csrf_protection: Annotated[
+        str | None, Header(description="Required value: 1. Also send an allowed Origin and application/json.")
+    ] = None,
+) -> None:
+    await _csrf_check(request, x_csrf_protection, JSON_ONLY)
 
 
 def email_destination(request: Request, kind: str) -> str:
@@ -138,7 +153,8 @@ async def current_user(
     routes require."""
     user = await _verify_session(request)
     if request.method not in {"GET", "HEAD", "OPTIONS"}:
-        await csrf_guard(request, x_csrf_protection=x_csrf_protection)
+        # Product routes include the multipart document import.
+        await _csrf_check(request, x_csrf_protection, JSON_OR_UPLOAD)
     return AuthenticatedUser(user_id=str(user.id), email=user.email or "")
 
 
