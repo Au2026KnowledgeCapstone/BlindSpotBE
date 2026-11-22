@@ -11,7 +11,8 @@ from app.models.assets import ImportRequirement
 from app.schemas.capabilities import ExtractionResponse
 from app.services import capability_client
 from app.services.resources import uid, scoped, requirement_out
-from app.services.private_storage import PrivateStore, signer, MAX_OBJECT_BYTES
+from app.services.object_store import store_for
+from app.services.private_storage import signer, MAX_OBJECT_BYTES
 
 ALLOWED = {".txt", ".md", ".markdown", ".pdf", ".docx"}
 
@@ -29,7 +30,7 @@ def get_import(db, context, iid):
 
 async def create_import(db, context, request, brd, srs, design_spec=None):
     # Validate configured storage/signing before asking a model to do paid work.
-    store = PrivateStore()
+    store = store_for("document")
     signer()
     files = []
     total = 0

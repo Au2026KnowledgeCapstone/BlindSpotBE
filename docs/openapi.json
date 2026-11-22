@@ -4958,6 +4958,97 @@
         }
       }
     },
+    "/projects/{pid}/dashboard": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Requirement coverage and run outcomes for a project",
+        "description": "Grouped in the database, so a project summary costs one request instead of one per run. Coverage counts the latest result per requirement; run outcomes count each completed run once, by its worst result. Spans every environment.",
+        "operationId": "project_dashboard_projects__pid__dashboard_get",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Project id.",
+              "title": "Pid"
+            },
+            "description": "Project id."
+          },
+          {
+            "name": "x-csrf-protection",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Protection"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not yours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/evidence/{eid}": {
       "get": {
         "tags": [
@@ -5832,6 +5923,67 @@
         ],
         "title": "CriterionAssessment",
         "description": "`source` is what lets the frontend render model output differently from\nobserved fact. A deterministic check outranks a model judgement."
+      },
+      "Dashboard": {
+        "properties": {
+          "requirements": {
+            "$ref": "#/components/schemas/DashboardCounts"
+          },
+          "runs": {
+            "$ref": "#/components/schemas/RunOutcomeCounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "requirements",
+          "runs"
+        ],
+        "title": "Dashboard",
+        "description": "Every summary figure for one project in a single read. Without this the\nonly way to learn how many runs passed is to fetch every run's results,\nwhich costs the caller one request per run."
+      },
+      "DashboardCounts": {
+        "properties": {
+          "total_requirements": {
+            "type": "integer",
+            "title": "Total Requirements"
+          },
+          "approved_requirements": {
+            "type": "integer",
+            "title": "Approved Requirements"
+          },
+          "requirements_tested": {
+            "type": "integer",
+            "title": "Requirements Tested"
+          },
+          "requirements_passed": {
+            "type": "integer",
+            "title": "Requirements Passed"
+          },
+          "requirements_failed": {
+            "type": "integer",
+            "title": "Requirements Failed"
+          },
+          "requirements_inconclusive": {
+            "type": "integer",
+            "title": "Requirements Inconclusive"
+          },
+          "requirements_untested": {
+            "type": "integer",
+            "title": "Requirements Untested"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_requirements",
+          "approved_requirements",
+          "requirements_tested",
+          "requirements_passed",
+          "requirements_failed",
+          "requirements_inconclusive",
+          "requirements_untested"
+        ],
+        "title": "DashboardCounts",
+        "description": "Coverage counts the latest result per requirement, so running the same\nrequirement repeatedly does not inflate it. `inconclusive` is derived as\ntested - passed - failed; `untested` stays distinct."
       },
       "EmptyRequest": {
         "properties": {},
@@ -7444,6 +7596,35 @@
         ],
         "title": "RunCreate",
         "description": "Only approved requirements may be selected, at most ten per run."
+      },
+      "RunOutcomeCounts": {
+        "properties": {
+          "total_runs": {
+            "type": "integer",
+            "title": "Total Runs"
+          },
+          "runs_passed": {
+            "type": "integer",
+            "title": "Runs Passed"
+          },
+          "runs_failed": {
+            "type": "integer",
+            "title": "Runs Failed"
+          },
+          "runs_inconclusive": {
+            "type": "integer",
+            "title": "Runs Inconclusive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_runs",
+          "runs_passed",
+          "runs_failed",
+          "runs_inconclusive"
+        ],
+        "title": "RunOutcomeCounts",
+        "description": "Runs grouped by outcome, which is a different question from coverage\nabove: this counts executions, that counts requirements.\n\nA run reads as its worst result \u2014 one failed requirement fails the run.\nOnly completed runs that produced at least one result are counted, so a\nqueued or abandoned run cannot drag a pass rate down."
       },
       "RunUsage": {
         "properties": {

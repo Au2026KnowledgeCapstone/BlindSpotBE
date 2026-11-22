@@ -91,3 +91,26 @@ class DashboardCounts(BaseModel):
     requirements_failed: int
     requirements_inconclusive: int
     requirements_untested: int
+
+
+class RunOutcomeCounts(BaseModel):
+    """Runs grouped by outcome, which is a different question from coverage
+    above: this counts executions, that counts requirements.
+
+    A run reads as its worst result — one failed requirement fails the run.
+    Only completed runs that produced at least one result are counted, so a
+    queued or abandoned run cannot drag a pass rate down."""
+
+    total_runs: int
+    runs_passed: int
+    runs_failed: int
+    runs_inconclusive: int
+
+
+class Dashboard(BaseModel):
+    """Every summary figure for one project in a single read. Without this the
+    only way to learn how many runs passed is to fetch every run's results,
+    which costs the caller one request per run."""
+
+    requirements: DashboardCounts
+    runs: RunOutcomeCounts

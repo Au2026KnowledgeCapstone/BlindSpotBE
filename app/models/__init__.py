@@ -3,7 +3,7 @@ what Alembic's autogenerate compares the live database against."""
 from app.models.imports import Import, ImportDocument
 from app.models.public import Environment, Invitation, Notification, Profile, Project, ProjectMember
 from app.models.requirements import AcceptanceCriterion, Requirement
-from app.models.runs import Action, AnalysisRun, CriterionAssessment, Evidence, Result
+from app.models.runs import Action, AnalysisRun, Evidence, Result
 from app.models.usage import AIUsage
 
 __all__ = [
@@ -11,7 +11,6 @@ __all__ = [
     "AcceptanceCriterion",
     "Action",
     "AnalysisRun",
-    "CriterionAssessment",
     "Environment",
     "Evidence",
     "Import",

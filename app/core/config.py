@@ -28,13 +28,16 @@ class Settings(BaseModel):
     database_pooled_url: str | None = None
     ai_service_url: str | None = None
     environment_credential_encryption_key: str | None = Field(default=None, repr=False)
-    ai_api_key: str | None = Field(default=None, repr=False)
+    ai_service_token: str | None = Field(default=None, repr=False)
     ai_callback_base_url: str | None = None
     ai_engine: Literal["mvp", "graph", "stub"] = "mvp"
     dispatch_encryption_key: str | None = Field(default=None, repr=False)
     dispatch_timeout_seconds: int = Field(default=10, ge=1, le=120)
     dispatch_lease_seconds: int = Field(default=180, ge=130)
     private_storage_dir: str | None = None
+    storage_backend: Literal["local", "gcs"] = "local"
+    gcs_documents_bucket: str | None = None
+    gcs_evidence_bucket: str | None = None
     download_signing_key: str | None = Field(default=None, repr=False)
     capability_timeout_seconds: int = Field(default=100, ge=10, le=180)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"

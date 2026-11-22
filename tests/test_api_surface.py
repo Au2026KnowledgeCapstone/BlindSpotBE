@@ -143,3 +143,44 @@ def test_surface_matches_the_api_draft():
     unbuilt = documented - declared
     assert not undocumented, f"in main.py but not in the draft: {sorted(undocumented)}"
     assert not unbuilt, f"in the draft but not in main.py: {sorted(unbuilt)}"
+
+
+def _upload_headers():
+    """What a browser actually sends on the import form: the CSRF header, an
+    allowed Origin, and a multipart body whose boundary the browser owns."""
+    return {"Origin": "http://localhost:3000", "X-CSRF-Protection": "1"}
+
+
+def test_multipart_upload_survives_the_csrf_content_type_check(client):
+    """Every file endpoint is declared with UploadFile, so a browser must send
+    multipart. A guard that insists on application/json makes those endpoints
+    unreachable by any client — the request has to get far enough to be told
+    the project does not exist, not be rejected at 415."""
+    _authenticate(client)
+    uploads = [
+        (path, method)
+        for path, item in main.app.openapi()["paths"].items()
+        for method, operation in item.items()
+        if "multipart/form-data" in operation.get("requestBody", {}).get("content", {})
+    ]
+    assert uploads, "expected at least one multipart endpoint"
+    for path, method in uploads:
+        concrete = path.replace("{pid}", "11111111-2222-3333-4444-555555555555")
+        response = client.request(
+            method.upper(), concrete,
+            files={"brd": ("BRD.md", b"Business requirements", "text/markdown"),
+                   "srs": ("SRS.md", b"Software requirements", "text/markdown")},
+            headers=_upload_headers(),
+        )
+        assert response.status_code != 415, f"{method.upper()} {path} rejects its own multipart body"
+
+
+def test_auth_routes_still_refuse_a_multipart_body(client):
+    """The relaxation is scoped to product routes. Nothing under /auth/*
+    legitimately posts a file, so it keeps the stricter content type."""
+    response = client.post(
+        "/auth/login",
+        files={"username": (None, "user@example.com"), "password": (None, "secret")},
+        headers=_upload_headers(),
+    )
+    assert response.status_code == 415

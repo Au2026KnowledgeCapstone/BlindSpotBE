@@ -35,7 +35,7 @@ Use `.env.example` and configure the existing Supabase authentication and BE
 PostgreSQL connection first. Apply the existing Supabase public migrations
 through your normal deployment workflow; Alembic only owns `blindspot`.
 
-Set `AI_SERVICE_URL` to aiservice's origin and `AI_API_KEY` to its
+Set `AI_SERVICE_URL` to aiservice's origin and `AI_SERVICE_TOKEN` to its
 `SERVICE_TOKEN`. Set `AI_CALLBACK_BASE_URL` to a BE URL reachable from the
 executor, ending in `/internal/v1`. Container deployments need resolvable
 service hostnames. Use HTTPS for service traffic in deployment.

@@ -29,7 +29,7 @@ def dispatch_once(sessions=SessionLocal, transport=None):
         envelope = json.loads(cipher().decrypt(encrypted.encode()))
         with httpx.Client(timeout=settings.dispatch_timeout_seconds, transport=transport, follow_redirects=False, trust_env=False) as client:
             response = client.post(settings.ai_service_url.rstrip('/') + '/v1/jobs', json=envelope,
-                                   headers={"Authorization": f"Bearer {settings.ai_api_key}"})
+                                   headers={"Authorization": f"Bearer {settings.ai_service_token}"})
         if response.status_code == 202:
             accepted = response.json()
             if accepted.get("job_id") == envelope["job_id"] and accepted.get("run_id") == envelope["run_id"]:

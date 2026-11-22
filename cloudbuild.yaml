@@ -1,0 +1,60 @@
+substitutions:
+  _IMAGE: europe-west1-docker.pkg.dev/blindspot-512322/cloud-run-source-deploy/au2026knowledgecapstone-blindspotbe/blindspotbe-git
+  _SERVICE: blindspotbe-git
+  _REGION: europe-west1
+
+steps:
+  - id: Buildpack
+    name: gcr.io/k8s-skaffold/pack
+    entrypoint: pack
+    args:
+      - build
+      - '${_IMAGE}:${COMMIT_SHA}'
+      - '--builder=gcr.io/buildpacks/builder:latest'
+      - '--network=cloudbuild'
+      - --publish
+      - --path=.
+  - id: Pull
+    name: gcr.io/cloud-builders/docker
+    args: [pull, --all-tags, '${_IMAGE}']
+  - id: Push
+    name: gcr.io/cloud-builders/docker
+    args: [push, --all-tags, '${_IMAGE}']
+  - id: Deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    # Reapply required runtime settings on every image deploy. Update flags
+    # retain any unrelated variables and secrets added later.
+    args:
+      - run
+      - services
+      - update
+      - '${_SERVICE}'
+      - '--image=${_IMAGE}:${COMMIT_SHA}'
+      - '--region=${_REGION}'
+      - '--service-account=blindspotbe-runtime@blindspot-512322.iam.gserviceaccount.com'
+      - '--update-env-vars=^@^SUPABASE_URL=https://xzsdkgbbkkubmslqnubd.supabase.co@SUPABASE_PUBLISHABLE_KEY=sb_publishable_0QTuYk5CDVOIK6OCabSQqQ_YrdFf9qC@AUTH_FRONTEND_ORIGINS=https://blindspotfe-158196513287.europe-west1.run.app,https://blindspotfe-gqaaav3k7q-ew.a.run.app@AUTH_BACKEND_ORIGIN=https://blindspotbe-git-158196513287.europe-west1.run.app@APP_ENV=production@AUTH_COOKIE_SAMESITE=none@AUTH_EMAIL_FRONTEND_ORIGIN=https://blindspotfe-158196513287.europe-west1.run.app@AI_SERVICE_URL=https://aiservice-158196513287.europe-west1.run.app@AI_CALLBACK_BASE_URL=https://blindspotbe-git-gqaaav3k7q-ew.a.run.app/internal/v1@AI_ENGINE=mvp@STORAGE_BACKEND=gcs@GCS_DOCUMENTS_BUCKET=blindspot-512322-documents@GCS_EVIDENCE_BUCKET=blindspot-512322-evidence'
+      - '--update-secrets=DATABASE_URL=DATABASE_URL:latest,AUTH_FLOW_ENCRYPTION_KEY=AUTH_FLOW_ENCRYPTION_KEY:latest,ENVIRONMENT_CREDENTIAL_ENCRYPTION_KEY=ENVIRONMENT_CREDENTIAL_ENCRYPTION_KEY:latest,AI_API_KEY=AISERVICE_SERVICE_TOKEN:latest,AI_SERVICE_TOKEN=AISERVICE_SERVICE_TOKEN:latest,DISPATCH_ENCRYPTION_KEY=BLINDSPOTBE_DISPATCH_ENCRYPTION_KEY:latest,DOWNLOAD_SIGNING_KEY=BLINDSPOTBE_DOWNLOAD_SIGNING_KEY:latest'
+      - --quiet
+  - id: DeployDispatcher
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - worker-pools
+      - deploy
+      - blindspotbe-dispatch
+      - '--image=${_IMAGE}:${COMMIT_SHA}'
+      - '--region=${_REGION}'
+      - --instances=1
+      - '--service-account=blindspotbe-runtime@blindspot-512322.iam.gserviceaccount.com'
+      - --command=/cnb/lifecycle/launcher
+      - '--args=python,-m,app.services.dispatch'
+      - --cpu=1
+      - --memory=512Mi
+      - '--update-env-vars=AI_SERVICE_URL=https://aiservice-158196513287.europe-west1.run.app,AI_ENGINE=mvp'
+      - '--update-secrets=DATABASE_URL=DATABASE_URL:latest,AI_API_KEY=AISERVICE_SERVICE_TOKEN:latest,AI_SERVICE_TOKEN=AISERVICE_SERVICE_TOKEN:latest,DISPATCH_ENCRYPTION_KEY=BLINDSPOTBE_DISPATCH_ENCRYPTION_KEY:latest'
+      - --quiet
+
+options:
+  logging: CLOUD_LOGGING_ONLY
