@@ -129,7 +129,12 @@ class RequestIdMiddleware:
             await send(message)
 
         span = get_current_span()
-        trace = {"trace_id": span.trace_id, "span_id": span.span_id} if span else {}
+        # An unsampled request gets a NoOpStreamedSpan whose trace/span ids are
+        # minted lazily and never reach Sentry. At the default 0.1 sample rate
+        # that would stamp ~90% of log lines with ids no trace search can
+        # resolve, so only correlate when the trace is actually exported.
+        sampled = bool(span and span.sampled)
+        trace = {"trace_id": span.trace_id, "span_id": span.span_id} if sampled else {}
         sentry_sdk.get_isolation_scope().set_tag("request_id", request_id)
         token = bind_context(request_id=request_id, **trace)
         try:
@@ -145,7 +150,7 @@ class RequestIdMiddleware:
                     "status_code": status,
                     "duration_ms": round((time.monotonic() - started) * 1000, 2),
                 }
-                if span and span.sampled:
+                if sampled:
                     sentry_logger.info("Request completed", attributes={**current_context(), **metadata})
                 logger.info(
                     "Request completed",

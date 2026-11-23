@@ -69,6 +69,9 @@ from app.services.auth import (
 )
 
 configure_logging("api")
+# Importing this module is what enables telemetry, and the test suite imports
+# it, so configure_telemetry() deliberately no-ops under pytest even when a DSN
+# is configured — CI must not ship test traffic to the real Sentry project.
 configure_telemetry(get_settings())
 
 DESCRIPTION = """

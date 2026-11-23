@@ -1,3 +1,4 @@
+import logging
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -12,10 +13,21 @@ from app.models.migration_filters import TARGET_SCHEMA, include_name, include_ob
 config = context.config
 
 if config.config_file_name is not None:
-    # disable_existing_loggers defaults to True, which would silence every
-    # logger already created — including the request logger in
-    # app.core.observability, whose records telemetry depends on.
+    # This configures logging for the migration CLI's own output. It is global,
+    # so it also clobbers application logging in any process that runs
+    # migrations in-process (tests call command.upgrade). Two separate effects
+    # have to be undone there: disable_existing_loggers defaults to True and
+    # sets .disabled on every logger already created, and alembic.ini's
+    # [logger_root] swaps the root handler for a plain stderr one and raises the
+    # root level to WARNING — which drops INFO request records by itself.
+    # The `alembic` CLI starts with no application handlers, so this is a no-op
+    # there; nothing about production logging depends on it.
+    _root = logging.getLogger()
+    _handlers, _level = list(_root.handlers), _root.level
     fileConfig(config.config_file_name, disable_existing_loggers=False)
+    if any(getattr(handler, "_blindspot", False) for handler in _handlers):
+        _root.handlers = _handlers
+        _root.setLevel(_level)
 
 target_metadata = Base.metadata
 
