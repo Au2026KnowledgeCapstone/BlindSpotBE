@@ -1,5 +1,6 @@
 """Narrow PostgREST adapter; all resources and query keys are chosen by routes."""
 import httpx
+from app.core.observability import current_context
 from fastapi import Request
 
 from app.core.errors import ServiceError
@@ -22,6 +23,8 @@ async def rest(request: Request, token: str, method: str, resource: str, *, para
     if count:
         preference = f"count={count}"
         headers["Prefer"] = f"{headers['Prefer']},{preference}" if "Prefer" in headers else preference
+    if request_id := current_context().get("request_id"):
+        headers["X-Request-ID"] = request_id
     transport = getattr(request.app.state, "supabase_transport", None)
     try:
         async with httpx.AsyncClient(timeout=10, transport=transport, follow_redirects=False, trust_env=False) as client:

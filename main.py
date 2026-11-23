@@ -21,6 +21,8 @@ from app.core import auth_pkce as pkce
 from app.core.deps import CurrentUser, Db, Paged, ProjectAccess, ProjectManage
 from app.core.errors import ServiceError, register_exception_handlers, validation_error_handler
 from app.core.observability import RequestIdMiddleware, configure_logging
+from app.core.telemetry import configure_telemetry
+from app.core.config import get_settings
 from app.core.supabase_auth import supabase_request
 from app.schemas.auth import (
     AuthResult,
@@ -67,6 +69,10 @@ from app.services.auth import (
 )
 
 configure_logging("api")
+# Importing this module is what enables telemetry, and the test suite imports
+# it, so configure_telemetry() deliberately no-ops under pytest even when a DSN
+# is configured — CI must not ship test traffic to the real Sentry project.
+configure_telemetry(get_settings())
 
 DESCRIPTION = """
 Requirements-driven product validation. A product manager imports requirements

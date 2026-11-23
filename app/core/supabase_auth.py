@@ -5,6 +5,7 @@ layout. Logic unchanged — this is the deliberate design: BE verifies every
 session by calling Supabase's /auth/v1/user remotely rather than decoding
 the access token locally."""
 import httpx
+from app.core.observability import current_context
 from fastapi import Request
 from pydantic import ValidationError
 
@@ -35,6 +36,8 @@ async def supabase_request(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     # A new client for each call prevents cross-user headers/cookie/session leakage.
+    if request_id := current_context().get("request_id"):
+        headers["X-Request-ID"] = request_id
     transport = getattr(request.app.state, "supabase_transport", None)
     try:
         async with httpx.AsyncClient(

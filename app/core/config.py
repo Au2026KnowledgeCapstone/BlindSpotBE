@@ -11,6 +11,11 @@ class Settings(BaseModel):
     model_config = ConfigDict(extra="ignore", hide_input_in_errors=True)
 
     database_url: str
+    sentry_dsn: str | None = Field(default=None, repr=False)
+    sentry_environment: str = "development"
+    sentry_release: str | None = None
+    sentry_traces_sample_rate: float = Field(default=0.1, ge=0, le=1)
+    sentry_trace_propagation_targets: list[str] = Field(default_factory=list)
     database_pooled_url: str | None = None
     ai_service_url: str | None = None
     environment_credential_encryption_key: str | None = Field(default=None, repr=False)
@@ -27,6 +32,49 @@ class Settings(BaseModel):
     download_signing_key: str | None = Field(default=None, repr=False)
     capability_timeout_seconds: int = Field(default=100, ge=10, le=180)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+
+    @field_validator("sentry_environment", "sentry_traces_sample_rate", mode="before")
+    @classmethod
+    def blank_means_default(cls, value, info):
+        # `KEY=` in .env yields "" rather than None, and the adjacent Sentry
+        # keys all document blank as "use the default". Without this, a blank
+        # sample rate fails float parsing and the whole API refuses to boot
+        # over an optional telemetry knob.
+        if isinstance(value, str) and not value.strip():
+            return cls.model_fields[info.field_name].get_default()
+        return value
+
+    @field_validator("sentry_trace_propagation_targets", mode="before")
+    @classmethod
+    def parse_trace_targets(cls, value):
+        if isinstance(value, str):
+            import json
+            text = value.strip()
+            if not text:
+                return []
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                # A bare or comma-separated regex is the obvious mistake given
+                # the documented "anchored regexes"; accept it instead of
+                # taking the service down at import time.
+                parsed = [part.strip() for part in text.split(",")]
+            value = parsed if isinstance(parsed, list) else [parsed]
+        if not isinstance(value, list):
+            return value
+        # match_regex_list() calls re.search() unguarded on every outbound
+        # request, so an uncompilable entry would turn into a 500 per call.
+        import re
+        targets = []
+        for target in value:
+            if not isinstance(target, str) or not target.strip():
+                continue
+            try:
+                re.compile(target)
+            except re.error:
+                continue
+            targets.append(target)
+        return targets
 
     @field_validator("environment_credential_encryption_key", "dispatch_encryption_key", "download_signing_key")
     @classmethod
