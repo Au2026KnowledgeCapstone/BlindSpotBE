@@ -3,30 +3,61 @@ Ported from feat/backend-auth (backend/auth.py) — relocated, not rewritten."""
 from fastapi import Request, Response
 
 from app.core import auth_pkce as pkce
-from app.core.auth import clear_session, email_destination, set_session
+from app.core.auth import VerifiedRecovery, clear_session, email_destination, set_session, validate_session
 from app.core.supabase_auth import AuthError, supabase_request, verified_user
-from app.schemas.auth import AuthResult, Message, PasswordUpdate, ResetRequest, SignupCredentials
+from app.schemas.auth import (
+    AuthResult, EmailRequest, Message, PasswordUpdate, ResetRequest, SignupAuthenticated,
+    SignupConfirmationRequired, SignupCredentials, SignupResult,
+)
 
 
-async def signup_session(request: Request, response: Response, credentials: SignupCredentials) -> AuthResult:
+async def signup_session(request: Request, response: Response, credentials: SignupCredentials) -> SignupResult:
     email_destination(request, "email")
     transaction = pkce.new_transaction(request, "signup")
-    data = await supabase_request(
-        request, "POST", "/signup",
-        body={
-            "email": str(credentials.email), "password": credentials.password.get_secret_value(),
-            "code_challenge": transaction["challenge"], "code_challenge_method": "s256",
-        },
-        params={"redirect_to": transaction["callback"]}, invalid_status=400,
-    )
-    if data.get("access_token"):
-        user = set_session(response, data, request.app.state.auth_settings)
-        return AuthResult(user=user, authenticated=True)
-    verified_user(data.get("user", data))
-    # Confirmation-enabled signup (including obfuscated existing-user replies).
-    # Do not echo an unconfirmed identity or overwrite another logged-in session.
+    try:
+        data = await supabase_request(
+            request, "POST", "/signup",
+            body={
+                "email": str(credentials.email), "password": credentials.password.get_secret_value(),
+                "code_challenge": transaction["challenge"], "code_challenge_method": "s256",
+            },
+            params={"redirect_to": transaction["callback"]}, invalid_status=400,
+        )
+    except AuthError as exc:
+        duplicate = exc.provider_status in {400, 422} and exc.provider_code in {"user_already_exists", "email_exists"}
+        email_cooldown = exc.provider_status == 429 and exc.provider_code == "over_email_send_rate_limit"
+        if not (duplicate or email_cooldown):
+            raise
+    else:
+        if data.get("access_token") is not None or data.get("refresh_token") is not None:
+            user = set_session(response, data, request.app.state.auth_settings)
+            return SignupAuthenticated(user=user)
+        verified_user(data.get("user", data))
+    # Use the same public result and transaction cookie for all pending outcomes.
     pkce.persist_transaction(request, response, transaction)
-    return AuthResult(authenticated=False, confirmation_required=True)
+    return SignupConfirmationRequired()
+
+
+async def resend_confirmation(request: Request, response: Response, payload: EmailRequest) -> Message:
+    email_destination(request, "email")
+    transaction = pkce.new_transaction(request, "signup")
+    try:
+        await supabase_request(
+            request, "POST", "/resend",
+            body={
+                "type": "signup", "email": str(payload.email),
+                "code_challenge": transaction["challenge"], "code_challenge_method": "s256",
+            },
+            params={"redirect_to": transaction["callback"]}, invalid_status=400,
+        )
+    except AuthError as exc:
+        request_limited = exc.provider_status == 429 and exc.provider_code == "over_request_rate_limit"
+        if exc.provider_status is None or request_limited:
+            raise
+        # Delivery errors and per-address cooldowns may occur only for eligible addresses.
+        # Leave the provider's send limits in force while returning the same receipt.
+    pkce.persist_transaction(request, response, transaction)
+    return Message(message="If confirmation is still needed, check your email for a link.")
 
 
 async def request_password_reset(request: Request, response: Response, payload: ResetRequest) -> Message:
@@ -39,19 +70,21 @@ async def request_password_reset(request: Request, response: Response, payload: 
             params={"redirect_to": transaction["callback"]}, invalid_status=400,
         )
     except AuthError as exc:
-        # Match successful/existing/nonexistent-account requests without exposing
-        # provider account distinctions. Operational outages remain distinguishable.
-        if exc.status not in {400, 429}:
+        # Delivery failures and address-specific throttles may occur only for
+        # eligible accounts. Surface transport failures and request-wide limits.
+        request_limited = exc.provider_status == 429 and exc.provider_code == "over_request_rate_limit"
+        if exc.provider_status is None or request_limited:
             raise
     pkce.persist_transaction(request, response, transaction)
-    return Message(message="If an account exists for this email, a password reset link will be sent.")
+    return Message(message="If this address is eligible for password reset, check your email for a link.")
 
 
 async def refresh_session(request: Request, response: Response) -> AuthResult:
     settings = request.app.state.auth_settings
-    recovery = pkce.recovery_grant(request, refreshing=True)
     token = request.cookies.get(settings.refresh_cookie)
     if not token:
+        raise AuthError(401, "Authentication required", clear_cookies=True)
+    if pkce.is_legacy_recovery(request):
         raise AuthError(401, "Authentication required", clear_cookies=True)
     try:
         data = await supabase_request(
@@ -61,13 +94,11 @@ async def refresh_session(request: Request, response: Response) -> AuthResult:
         # Keep cookies on outages so a retry can recover the session.
         exc.clear_cookies = exc.status == 401
         raise
-    user = set_session(response, data, settings)
-    if recovery and recovery.get("sub") == str(user.id):
-        pkce.set_recovery(request, response, data, user, expires=recovery["exp"])
+    user = set_session(response, data, settings, preserve_recovery=True)
     return AuthResult(user=user, authenticated=True)
 
 
-async def logout_session(request: Request, response: Response) -> str:
+async def revoke_workspace_session(request: Request) -> None:
     settings = request.app.state.auth_settings
     token = request.cookies.get(settings.access_cookie)
     refresh_token = request.cookies.get(settings.refresh_cookie)
@@ -98,16 +129,36 @@ async def logout_session(request: Request, response: Response) -> str:
                 await supabase_request(request, "POST", "/logout", token=token, params={"scope": "local"})
     except AuthError as exc:
         if exc.status != 401:
-            exc.clear_cookies = True
             raise
+
+
+async def logout_session(request: Request, response: Response) -> str:
+    settings = request.app.state.auth_settings
+    failure = None
+    try:
+        await revoke_workspace_session(request)
+    except AuthError as exc:
+        failure = exc
+    try:
+        recovery = pkce.recovery_grant(request)
+        if recovery:
+            await supabase_request(request, "POST", "/logout", token=recovery["access_token"], params={"scope": "local"})
+    except AuthError as exc:
+        if exc.status != 401:
+            failure = failure or exc
+    if failure:
+        failure.clear_cookies = True
+        raise failure
     clear_session(response, settings)
     pkce.cancel_pending(request, response)
     return "Signed out of this session"
 
 
-async def update_password(request: Request, response: Response, payload: PasswordUpdate) -> str:
+async def update_password(request: Request, response: Response, payload: PasswordUpdate, recovery: VerifiedRecovery) -> str:
     settings = request.app.state.auth_settings
-    token = request.cookies[settings.access_cookie]
+    if payload.user_id != recovery.user.id:
+        raise AuthError(401, "The password reset session changed")
+    token = recovery.access_token.get_secret_value()
     await supabase_request(
         request, "PUT", "/user", token=token, body={"password": payload.password.get_secret_value()}, invalid_status=400
     )
@@ -117,34 +168,38 @@ async def update_password(request: Request, response: Response, payload: Passwor
     try:
         await supabase_request(request, "POST", "/logout", token=token, params={"scope": "local"})
     except AuthError:
-        message = "Password updated. Local session cleared; remote session revocation could not be confirmed."
-    clear_session(response, settings)
+        message = "Password updated. Reset access cleared in this browser. Remote revocation could not be confirmed."
+    pkce.delete_cookie(response, settings, pkce.recovery_name(settings))
     pkce.cancel_pending(request, response)
     return message
 
 
-async def complete_pkce_callback(request: Request, response: Response, purpose: str, transaction_id: str) -> None:
+async def complete_pkce_callback(request: Request, response: Response, purpose: str, transaction_id: str) -> str:
     settings = request.app.state.auth_settings
     # Clear the chosen transaction on every outcome; never reflect provider errors.
     if pkce.FLOW_ID.fullmatch(transaction_id):
         pkce.delete_cookie(response, settings, pkce.prefix(settings) + transaction_id, transaction=True)
-    pkce.delete_cookie(response, settings, pkce.recovery_name(settings))
     try:
         pending = pkce.transaction(request, purpose, transaction_id)
-    except AuthError:
-        return
+    except AuthError as exc:
+        return "expired" if exc.status == 410 else "failed"
+    if getattr(request.state, "pkce_expired", False):
+        return "expired"
     code = getattr(request.state, "pkce_code", None)
     if not pending or not code:
-        return
+        return "invalid"
     try:
         data = await supabase_request(
             request, "POST", "/token", params={"grant_type": "pkce"},
             body={"auth_code": code, "code_verifier": pending["verifier"]},
         )
-        user = set_session(response, data, settings)
         if purpose == "recovery":
-            pkce.set_recovery(request, response, data, user)
-    except AuthError:
-        # Signup confirmation may already have succeeded at Supabase. The clean
-        # login page remains available; recovery never falls back to ordinary login.
-        pass
+            pkce.set_recovery(request, response, validate_session(data))
+        elif request.cookies.get(settings.access_cookie) or request.cookies.get(settings.refresh_cookie):
+            # Confirm the email without silently switching an existing browser session.
+            validate_session(data)
+        else:
+            set_session(response, data, settings, preserve_recovery=True)
+        return "confirmed"
+    except AuthError as exc:
+        return "expired" if exc.status == 410 else "failed"

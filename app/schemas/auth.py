@@ -2,7 +2,7 @@
 
 Ported from feat/backend-auth (backend/auth_schemas.py) onto the app/
 layout. Logic unchanged."""
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr
@@ -30,6 +30,21 @@ class AuthResult(BaseModel):
     confirmation_required: bool = False
 
 
+class SignupAuthenticated(BaseModel):
+    user: User
+    authenticated: Literal[True] = True
+    confirmation_required: Literal[False] = False
+
+
+class SignupConfirmationRequired(BaseModel):
+    user: None = None
+    authenticated: Literal[False] = False
+    confirmation_required: Literal[True] = True
+
+
+SignupResult = Annotated[SignupAuthenticated | SignupConfirmationRequired, Field(discriminator="authenticated")]
+
+
 class EmptyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -38,11 +53,16 @@ class Message(BaseModel):
     message: str
 
 
-class ResetRequest(BaseModel):
+class EmailRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     email: EmailStr
 
 
+class ResetRequest(EmailRequest):
+    pass
+
+
 class PasswordUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    user_id: UUID
     password: Annotated[SecretStr, Field(min_length=8, max_length=4096)]

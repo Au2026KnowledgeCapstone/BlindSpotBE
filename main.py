@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 
 from app.core.auth import (
+    VerifiedRecovery,
     csrf_guard,
     current_auth_user,
     email_destination,
@@ -25,11 +26,13 @@ from app.core.supabase_auth import supabase_request
 from app.schemas.auth import (
     AuthResult,
     Credentials,
+    EmailRequest,
     EmptyRequest,
     Message,
     PasswordUpdate,
     ResetRequest,
     SignupCredentials,
+    SignupResult,
     User,
 )
 from app.schemas.common import Acknowledged, ErrorResponse, Page
@@ -62,6 +65,7 @@ from app.services.auth import (
     logout_session,
     refresh_session,
     request_password_reset,
+    resend_confirmation,
     signup_session,
     update_password,
 )
@@ -138,9 +142,14 @@ def liveness(db: Db) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@app.post("/auth/signup", response_model=AuthResult, tags=["Auth"], dependencies=[Depends(csrf_guard)])
-async def signup(credentials: SignupCredentials, request: Request, response: Response) -> AuthResult:
+@app.post("/auth/signup", response_model=SignupResult, tags=["Auth"], dependencies=[Depends(csrf_guard)])
+async def signup(credentials: SignupCredentials, request: Request, response: Response) -> SignupResult:
     return await signup_session(request, response, credentials)
+
+
+@app.post("/auth/confirmation/resend", response_model=Message, tags=["Auth"], dependencies=[Depends(csrf_guard)])
+async def confirmation_resend(payload: EmailRequest, request: Request, response: Response) -> Message:
+    return await resend_confirmation(request, response, payload)
 
 
 @app.post("/auth/login", response_model=AuthResult, tags=["Auth"], dependencies=[Depends(csrf_guard)])
@@ -177,13 +186,17 @@ async def logout(payload: EmptyRequest, request: Request, response: Response) ->
 async def pkce_callback(purpose: Literal["signup", "recovery"], transaction_id: str, request: Request):
     destination = email_destination(request, "email" if purpose == "signup" else "recovery")
     response = RedirectResponse(destination, status_code=303)
-    await complete_pkce_callback(request, response, purpose, transaction_id)
+    outcome = await complete_pkce_callback(request, response, purpose, transaction_id)
+    if purpose == "signup":
+        response.headers["location"] = f"{destination}?confirmation={outcome}"
+    elif outcome != "confirmed":
+        response.headers["location"] = f"{destination}?recovery={outcome}"
     return response
 
 
 @app.get("/auth/recovery", response_model=User, tags=["Auth"])
-async def recovery_status(user: User = Depends(recovery_user)) -> User:
-    return user
+async def recovery_status(recovery: VerifiedRecovery = Depends(recovery_user)) -> User:
+    return recovery.user
 
 
 @app.post(
@@ -195,9 +208,9 @@ async def password_reset_request(payload: ResetRequest, request: Request, respon
 
 @app.post("/auth/password/update", response_model=Message, tags=["Auth"], dependencies=[Depends(csrf_guard)])
 async def password_update(
-    payload: PasswordUpdate, request: Request, response: Response, user: User = Depends(recovery_user)
+    payload: PasswordUpdate, request: Request, response: Response, recovery: VerifiedRecovery = Depends(recovery_user)
 ) -> Message:
-    return Message(message=await update_password(request, response, payload))
+    return Message(message=await update_password(request, response, payload, recovery))
 
 
 # Identity and project routes are implemented in app/services/workspace_routes.py.
