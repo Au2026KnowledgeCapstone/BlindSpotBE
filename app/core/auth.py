@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, Request, Response
+from fastapi import FastAPI, Header, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, SecretStr, ValidationError
@@ -43,8 +43,11 @@ class AuthenticatedUser:
     email: str
 
 
-def clear_session(response: Response, settings: AuthSettings) -> None:
-    for name in (settings.access_cookie, settings.refresh_cookie, pkce.recovery_name(settings)):
+def clear_session(response: Response, settings: AuthSettings, *, preserve_recovery: bool = False) -> None:
+    names = (settings.access_cookie, settings.refresh_cookie)
+    if not preserve_recovery:
+        names += (pkce.recovery_name(settings),)
+    for name in names:
         response.delete_cookie(
             name, path="/", secure=settings.secure, httponly=True, samesite=settings.same_site
         )
@@ -57,13 +60,18 @@ class UpstreamSession(BaseModel):
     user: User
 
 
-def set_session(response: Response, data: dict, settings: AuthSettings) -> User:
+def validate_session(data: dict) -> UpstreamSession:
     try:
         session = UpstreamSession.model_validate(data)
         if not session.access_token.get_secret_value() or not session.refresh_token.get_secret_value():
             raise ValueError()
     except (ValidationError, ValueError):
         raise AuthError(503, "Invalid authentication service response") from None
+    return session
+
+
+def set_session(response: Response, data: dict, settings: AuthSettings, *, preserve_recovery: bool = False) -> User:
+    session = validate_session(data)
     for name, value, age in (
         (settings.access_cookie, session.access_token.get_secret_value(), session.expires_in),
         (settings.refresh_cookie, session.refresh_token.get_secret_value(), settings.refresh_max_age),
@@ -72,7 +80,8 @@ def set_session(response: Response, data: dict, settings: AuthSettings) -> User:
             name, value, max_age=age, expires=datetime.now(timezone.utc) + timedelta(seconds=age),
             path="/", secure=settings.secure, httponly=True, samesite=settings.same_site,
         )
-    pkce.delete_cookie(response, settings, pkce.recovery_name(settings))
+    if not preserve_recovery:
+        pkce.delete_cookie(response, settings, pkce.recovery_name(settings))
     return session.user
 
 
@@ -123,7 +132,7 @@ def email_destination(request: Request, kind: str) -> str:
 async def _verify_session(request: Request) -> User:
     settings = request.app.state.auth_settings
     token = request.cookies.get(settings.access_cookie)
-    if not token:
+    if not token or pkce.is_legacy_recovery(request):
         raise AuthError(401, "Authentication required")
     # Supabase checks authenticity; we never decode an unverified JWT.
     try:
@@ -158,13 +167,31 @@ async def current_user(
     return AuthenticatedUser(user_id=str(user.id), email=user.email or "")
 
 
-async def recovery_user(request: Request, user: User = Depends(current_auth_user)) -> User:
-    if not pkce.recovery_grant(request, user.id):
-        raise AuthError(403, "A verified, unexpired password recovery session is required")
-    return user
+@dataclass(frozen=True)
+class VerifiedRecovery:
+    user: User
+    access_token: SecretStr
+
+
+async def recovery_user(request: Request) -> VerifiedRecovery:
+    invalid = AuthError(401, "A verified, unexpired password recovery session is required")
+    grant = pkce.recovery_grant(request)
+    if not grant:
+        raise invalid
+    token = grant["access_token"]
+    try:
+        user = verified_user(await supabase_request(request, "GET", "/user", token=token))
+    except AuthError as exc:
+        if exc.status == 401:
+            raise invalid from None
+        raise
+    if grant.get("sub") != str(user.id):
+        raise invalid
+    return VerifiedRecovery(user, SecretStr(token))
 
 
 async def handle_auth_error(request: Request, exc: AuthError) -> JSONResponse:
+    settings = request.app.state.auth_settings
     code = {
         401: "unauthorized",
         403: "forbidden",
@@ -172,10 +199,16 @@ async def handle_auth_error(request: Request, exc: AuthError) -> JSONResponse:
         429: "rate_limited",
         503: "service_unavailable",
     }.get(exc.status, "auth_error")
+    if (
+        exc.status == 401 and request.url.path == "/auth/me"
+        and not request.cookies.get(settings.access_cookie) and not request.cookies.get(settings.refresh_cookie)
+    ):
+        code = "session_missing"
+    if exc.status == 401 and exc.clear_cookies and request.url.path == "/auth/refresh":
+        code = "session_invalid"
     response = JSONResponse(status_code=exc.status, content={"error": {"code": code, "message": exc.message}})
     if exc.clear_cookies:
-        settings = request.app.state.auth_settings
-        clear_session(response, settings)
+        clear_session(response, settings, preserve_recovery=request.url.path == "/auth/refresh")
         if request.url.path == "/auth/logout":
             pkce.cancel_pending(request, response)
     return response

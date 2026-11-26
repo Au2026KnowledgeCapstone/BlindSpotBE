@@ -9,15 +9,15 @@ middleware and auth_response_security bind their settings once, at
 app-construction time — the handful of tests that need a different
 trusted-origins list reload the main module with patched env vars instead.
 
-test_email_auth.py (PKCE/recovery/password-reset flows) was not ported in
-this pass — follow-up work. The underlying logic (app/services/auth.py,
-app/core/auth_pkce.py) is unchanged from feat/backend-auth, just relocated.
+Email callback and recovery tests exercise the same app and mocked transport.
 """
 import asyncio
 import base64
+import hashlib
 import importlib
 import json
 import os
+import time
 import unittest
 from contextlib import contextmanager
 
@@ -25,7 +25,9 @@ import httpx
 from fastapi.testclient import TestClient
 
 import main
+from app.core import auth_pkce
 from app.core.auth_config import AuthSettings
+from app.core.observability import clean_text
 
 ORIGIN = "http://localhost:3000"
 HEADERS = {"Origin": ORIGIN, "X-CSRF-Protection": "1", "Content-Type": "application/json"}
@@ -140,18 +142,269 @@ class AuthenticationTests(unittest.TestCase):
         self.assertIn("bs_pkce_", response.headers.get("set-cookie", ""))
         self.assert_private(response)
 
-    def test_signup_with_session_and_existing_account_rejection(self):
+    def test_signup_with_immediate_session(self):
         response = self.post("signup", CREDENTIALS)
-        self.assertTrue(response.json()["authenticated"])
-        self.status = 422
-        response = self.post("signup", CREDENTIALS)
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {
+            "user": {"id": USER["id"], "email": USER["email"]},
+            "authenticated": True, "confirmation_required": False,
+        })
         self.assertEqual(self.client.cookies["bs_access"], "access-one")
+        self.assert_private(response)
+
+    def test_pending_signup_has_identical_public_outcomes_for_new_and_existing_accounts(self):
+        self.client.cookies.set("bs_access", "existing-session")
+        outcomes = [
+            (200, USER),  # New or previously unconfirmed account.
+            (200, {**USER2, "identities": []}),  # Obfuscated confirmed account.
+            (422, {"error_code": "user_already_exists", "msg": "private detail"}),
+            (400, {"error_code": "email_exists"}),
+            (422, {"msg": "User already registered"}),
+            (429, {"error_code": "over_email_send_rate_limit"}),  # Account-specific send cooldown.
+        ]
+        for self.status, self.reply in outcomes:
+            with self.subTest(status=self.status):
+                response = self.post("signup", CREDENTIALS)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json(), {
+                    "user": None, "authenticated": False, "confirmation_required": True,
+                })
+                cookies = response.headers.get_list("set-cookie")
+                self.assertEqual(len(cookies), 1)
+                self.assertRegex(cookies[0], r"^bs_pkce_[\w-]+=.+; HttpOnly; Max-Age=900; Path=/; SameSite=lax$")
+                self.assertEqual(self.client.cookies["bs_access"], "existing-session")
+                self.assert_private(response)
+
+    def test_signup_keeps_safe_invalid_input_rate_limit_and_outage_errors(self):
+        response = self.post("signup", {**CREDENTIALS, "password": "short"})
+        self.assertEqual(response.status_code, 422)
+        self.assertFalse(self.requests)
+        for self.status, expected in [(422, 400), (429, 429), (500, 503)]:
+            with self.subTest(status=self.status):
+                self.reply = {"error_code": "weak_password", "msg": "private provider detail"}
+                response = self.post("signup", CREDENTIALS)
+                self.assertEqual(response.status_code, expected)
+                self.assertNotIn("private provider detail", response.text)
+                self.assertNotIn("set-cookie", response.headers)
+                self.assert_private(response)
+        self.status, self.reply = 200, {**USER, "refresh_token": "partial"}
+        self.assertEqual(self.post("signup", CREDENTIALS).status_code, 503)
+
+    def test_resend_is_private_and_reuses_signup_callback_with_fresh_pkce(self):
+        path = "confirmation/resend"
+        payload = {"email": CREDENTIALS["email"]}
+        outcomes = [
+            (200, {}),  # Missing or confirmed address.
+            (429, {"error_code": "over_email_send_rate_limit"}),
+            (500, {"msg": "private delivery error"}),
+            (200, {"message_id": "private provider detail"}),  # Eligible address.
+        ]
+        redirects = set()
+        challenges = set()
+        for self.status, self.reply in outcomes:
+            response = self.post(path, payload)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {
+                "message": "If confirmation is still needed, check your email for a link.",
+            })
+            self.assertEqual(len(response.headers.get_list("set-cookie")), 1)
+            self.assertIn("bs_pkce_", response.headers["set-cookie"])
+            self.assert_private(response)
+            request = self.requests[-1]
+            self.assertEqual(request.url.path, "/auth/v1/resend")
+            body = json.loads(request.content)
+            challenge = body.pop("code_challenge")
+            self.assertEqual(body, {"type": "signup", **payload, "code_challenge_method": "s256"})
+            callback = request.url.params["redirect_to"]
+            callback_id = callback.rsplit("/", 1)[-1]
+            self.assertIn(f"bs_pkce_{callback_id}=", response.headers["set-cookie"])
+            self.assertTrue(callback.startswith("http://localhost:8000/auth/callback/signup/"))
+            redirects.add(callback)
+            challenges.add(challenge)
+        self.assertEqual(len(redirects), len(outcomes))
+        self.assertEqual(len(challenges), len(outcomes))
+        other_browser = TestClient(self.app, base_url="http://localhost:8000")
+        response = other_browser.get(callback, params={"code": "synthetic-code"}, follow_redirects=False)
+        self.assertEqual(response.status_code, 303)
+        self.assertNotIn("bs_access", other_browser.cookies)
+        self.assertEqual(len(self.requests), len(outcomes))
+
+        self.status, self.reply = 200, session()
+        response = self.client.get(callback, params={"code": "synthetic-code"}, follow_redirects=False)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], ORIGIN + "/login?confirmation=confirmed")
+        self.assertEqual(self.client.cookies["bs_access"], "access-one")
+        self.assertNotIn(f"bs_pkce_{callback_id}", self.client.cookies)
+        exchange = self.requests[-1]
+        self.assertEqual(exchange.url.params["grant_type"], "pkce")
+        exchange_body = json.loads(exchange.content)
+        self.assertEqual(exchange_body["auth_code"], "synthetic-code")
+        digest = hashlib.sha256(exchange_body["code_verifier"].encode()).digest()
+        self.assertEqual(base64.urlsafe_b64encode(digest).rstrip(b"=").decode(), challenge)
+
+    def start_email_flow(self, purpose):
+        self.status, self.reply = 200, USER
+        path, body = ("signup", CREDENTIALS) if purpose == "signup" else (
+            "password/reset-request", {"email": USER["email"]},
+        )
+        self.assertEqual(self.post(path, body).status_code, 200)
+        return self.requests[-1].url.params["redirect_to"]
+
+    def test_confirmation_callback_redirects_with_only_a_fixed_outcome(self):
+        for status, payload, params, outcome in (
+            (400, {"error_code": "flow_state_expired"}, {"code": "private-code"}, "expired"),
+            (503, {"msg": "private provider text"}, {"code": "private-code"}, "failed"),
+            (200, {}, {"error_code": "otp_expired", "error_description": "private provider text"}, "expired"),
+            (200, {}, {"code": ["one", "two"]}, "invalid"),
+        ):
+            with self.subTest(outcome=outcome):
+                callback = self.start_email_flow("signup")
+                self.status, self.reply = status, payload
+                response = self.client.get(callback, params=params, follow_redirects=False)
+                self.assertEqual(response.status_code, 303)
+                self.assertEqual(response.headers["location"], ORIGIN + "/login?confirmation=" + outcome)
+                self.assertEqual(response.headers["referrer-policy"], "no-referrer")
+                self.assertNotIn("private", response.text)
+                self.assertNotIn("bs_access", self.client.cookies)
+                self.assertNotIn("bs_pkce_" + callback.rsplit("/", 1)[-1], self.client.cookies)
+
+    def test_confirmation_preserves_an_existing_workspace_session(self):
+        self.post("login", CREDENTIALS)
+        callback = self.start_email_flow("signup")
+        self.reply = session(user=USER2, suffix="different")
+        response = self.client.get(callback, params={"code": "synthetic-code"}, follow_redirects=False)
+        self.assertEqual(response.headers["location"], ORIGIN + "/login?confirmation=confirmed")
+        self.assertEqual(self.client.cookies["bs_access"], "access-one")
+        self.assertEqual(self.client.cookies["bs_refresh"], "refresh-one")
+
+    def test_confirmation_reports_an_expired_browser_transaction_without_exchange(self):
+        callback = self.start_email_flow("signup")
+        identifier = callback.rsplit("/", 1)[-1]
+        name = "bs_pkce_" + identifier
+        settings = self.app.state.auth_settings
+        pending = auth_pkce.unseal(settings, self.client.cookies[name].strip('"'))
+        self.client.cookies.clear()
+        self.client.cookies.set(name, auth_pkce.seal(settings, {**pending, "exp": int(time.time()) - 1}))
+        response = self.client.get(callback, params={"code": "synthetic-code"}, follow_redirects=False)
+        self.assertEqual(response.headers["location"], ORIGIN + "/login?confirmation=expired")
+        self.assertEqual(len(self.requests), 1)
+
+    def test_auth_callback_paths_and_queries_are_redacted_in_structured_logs(self):
+        for target in (
+            "/auth/callback/signup/private-id?code=private-code",
+            "/auth/v1/signup?redirect_to=https%3A%2F%2Fhost%2Fauth%2Fcallback%2Fsignup%2Fprivate-id",
+        ):
+            logged = clean_text(target)
+            self.assertNotIn("private", logged)
+            self.assertIn("/auth/callback/[redacted]", logged)
+
+    def test_reset_request_masks_per_address_outcomes_but_surfaces_request_throttling(self):
+        for self.status, self.reply in (
+            (200, {}), (400, {"msg": "private account detail"}),
+            (429, {"error_code": "over_email_send_rate_limit"}), (500, {"msg": "private SMTP detail"}),
+        ):
+            response = self.post("password/reset-request", {"email": USER["email"]})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {
+                "message": "If this address is eligible for password reset, check your email for a link.",
+            })
+            self.assertIn("bs_pkce_", response.headers["set-cookie"])
+        self.status, self.reply = 429, {"error_code": "over_request_rate_limit"}
+        response = self.post("password/reset-request", {"email": USER["email"]})
+        self.assertEqual(response.status_code, 429)
         self.assertNotIn("set-cookie", response.headers)
+
+    def issue_recovery(self):
+        callback = self.start_email_flow("recovery")
+        self.reply = session(suffix="recovery")
+        response = self.client.get(callback, params={"code": "synthetic-reset"}, follow_redirects=False)
+        self.assertEqual(response.headers["location"], ORIGIN + "/reset-password")
+        self.assertIn("bs_recovery=", response.headers["set-cookie"])
+        self.assertIn("HttpOnly; Max-Age=600", response.headers["set-cookie"])
+        self.assertNotIn("access-recovery", response.headers["set-cookie"])
+        self.assertNotIn("refresh-recovery", response.headers["set-cookie"])
+
+    def test_recovery_credentials_only_authorize_password_reset(self):
+        self.issue_recovery()
+        self.assertNotIn("bs_access", self.client.cookies)
+        self.assertNotIn("bs_refresh", self.client.cookies)
+        self.assertEqual(self.client.get("/auth/me").status_code, 401)
+        self.assertEqual(self.client.get("/projects").status_code, 401)
+        self.assertEqual(self.post("refresh").status_code, 401)
+        self.assertIn("bs_recovery", self.client.cookies)
+        self.reply = USER
+        self.assertEqual(self.client.get("/auth/recovery").status_code, 200)
+        self.assertEqual(self.post("password/update", {
+            "user_id": USER2["id"], "password": "Synthetic-new-pass-2!",
+        }).status_code, 401)
+        self.assertEqual(self.requests[-1].method, "GET")
+        response = self.post("password/update", {
+            "user_id": USER["id"], "password": "Synthetic-new-pass-2!",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("bs_recovery", self.client.cookies)
+        self.assertEqual([req.method for req in self.requests[-3:]], ["GET", "PUT", "POST"])
+        self.assertEqual(self.requests[-1].headers["authorization"], "Bearer access-recovery")
+        self.assertEqual(self.client.get("/auth/recovery").status_code, 401)
+
+    def test_expired_recovery_rejects_a_stale_update_before_contacting_provider(self):
+        self.issue_recovery()
+        settings = self.app.state.auth_settings
+        grant = auth_pkce.unseal(settings, self.client.cookies["bs_recovery"].strip('"'))
+        self.client.cookies.clear()
+        self.client.cookies.set("bs_recovery", auth_pkce.seal(settings, {**grant, "exp": int(time.time()) - 1}))
+        response = self.post("password/update", {"user_id": USER["id"], "password": "Synthetic-new-pass-2!"})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(len(self.requests), 2)
+
+    def test_logout_revokes_recovery_and_workspace_credentials(self):
+        self.post("login", CREDENTIALS)
+        self.issue_recovery()
+        response = self.post("logout")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(list(self.client.cookies))
+        self.assertEqual(
+            [r.headers["authorization"] for r in self.requests[-2:]],
+            ["Bearer access-one", "Bearer access-recovery"],
+        )
+
+    def test_resend_enforces_csrf_validation_and_rate_limits(self):
+        path = "confirmation/resend"
+        payload = {"email": CREDENTIALS["email"]}
+        self.assertEqual(self.post(path, payload, {"Origin": ORIGIN}).status_code, 403)
+        self.assertEqual(self.post(path, payload, {**HEADERS, "Origin": "https://untrusted.example"}).status_code, 403)
+        self.assertEqual(self.post(path, {"email": "invalid"}).status_code, 422)
+        self.assertFalse(self.requests)
+
+        self.status, self.reply = 429, {"error_code": "over_request_rate_limit"}
+        self.assertEqual(self.post(path, payload).status_code, 429)
+        self.status, self.reply = 200, {}
+        for _ in range(8):
+            self.assertEqual(self.post(path, payload).status_code, 200)
+        self.assertEqual(self.post(path, payload).status_code, 429)
+        self.assertEqual(len(self.requests), 9)
+
+    def test_email_request_transport_failures_are_safe(self):
+        def offline(request):
+            raise httpx.ConnectError("private transport detail", request=request)
+
+        self.app.state.supabase_transport = httpx.MockTransport(offline)
+        email = {"email": CREDENTIALS["email"]}
+        for path, payload in [("signup", CREDENTIALS), ("confirmation/resend", email), ("password/reset-request", email)]:
+            response = self.post(path, payload)
+            self.assertEqual(response.status_code, 503)
+            self.assertNotIn("private transport detail", response.text)
+            self.assertNotIn("set-cookie", response.headers)
+            self.assert_private(response)
 
     def test_me_missing_invalid_and_valid(self):
         response = self.client.get("/auth/me")
         self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"]["code"], "session_missing")
+        self.assertFalse(self.requests)
+        self.client.cookies.set("bs_refresh", "refresh-one")
+        response = self.client.get("/auth/me")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"]["code"], "unauthorized")
         self.assertFalse(self.requests)
         self.client.cookies.set("bs_access", "access-one")
         self.status = 401
@@ -178,22 +431,49 @@ class AuthenticationTests(unittest.TestCase):
         self.assertNotIn("rotated", response.text)
         self.assert_private(response)
 
-    def test_refresh_rejection_clears_cookies_and_outage_retains_them(self):
+    def test_refresh_temporary_rejections_retain_cookies(self):
         self.post("login", CREDENTIALS)
-        self.status = 503
+        cases = [
+            (503, {}, 503), (429, {}, 429), (401, {}, 503), (403, {"error_code": "no_authorization"}, 503),
+            (400, {"error_code": "validation_failed"}, 503), (409, {"error_code": "conflict"}, 503),
+            (200, {"access_token": "incomplete"}, 503),
+        ]
+        for self.status, self.reply, expected in cases:
+            with self.subTest(status=self.status, reply=self.reply):
+                response = self.post("refresh")
+                self.assertEqual(response.status_code, expected)
+                self.assertNotIn("set-cookie", response.headers)
+                self.assertEqual(self.client.cookies["bs_refresh"], "refresh-one")
+                self.assertEqual(self.client.cookies["bs_access"], "access-one")
+                self.assert_private(response)
+
+        def offline(request):
+            raise httpx.ConnectError("private transport detail", request=request)
+
+        self.app.state.supabase_transport = httpx.MockTransport(offline)
         response = self.post("refresh")
         self.assertEqual(response.status_code, 503)
         self.assertNotIn("set-cookie", response.headers)
         self.assertEqual(self.client.cookies["bs_refresh"], "refresh-one")
-        self.status = 400
-        response = self.post("refresh")
-        self.assertEqual(response.status_code, 401)
-        self.assertFalse(list(self.client.cookies))
-        self.assert_private(response)
+
+    def test_refresh_definitive_rejection_clears_cookies(self):
+        for code in ("refresh_token_not_found", "refresh_token_already_used", "session_expired", "session_not_found"):
+            with self.subTest(code=code):
+                self.status, self.reply = 200, session()
+                self.post("login", CREDENTIALS)
+                self.status, self.reply = 400, {"error_code": code, "msg": "private rejection"}
+                response = self.post("refresh")
+                self.assertEqual(response.status_code, 401)
+                self.assertEqual(response.json()["error"]["code"], "session_invalid")
+                self.assertFalse(list(self.client.cookies))
+                self.assertNotIn(code, response.text)
+                self.assertNotIn("private rejection", response.text)
+                self.assert_private(response)
 
     def test_missing_refresh(self):
         response = self.post("refresh")
         self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"]["code"], "session_invalid")
         self.assertFalse(self.requests)
 
     def test_logout_revokes_current_session_and_deletes_cookies(self):
@@ -313,6 +593,7 @@ class AuthenticationTests(unittest.TestCase):
         schema = self.client.get("/openapi.json").json()
         expected = {
             "/auth/signup": "post", "/auth/login": "post", "/auth/me": "get",
+            "/auth/confirmation/resend": "post",
             "/auth/refresh": "post", "/auth/logout": "post",
             "/auth/callback/{purpose}/{transaction_id}": "get", "/auth/recovery": "get",
             "/auth/password/reset-request": "post", "/auth/password/update": "post",

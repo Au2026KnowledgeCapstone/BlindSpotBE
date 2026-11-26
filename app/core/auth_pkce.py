@@ -34,12 +34,14 @@ def seal(settings, value):
     return cipher(settings).encrypt(json.dumps(value).encode()).decode()
 
 
-def unseal(settings, value):
+def unseal(settings, value, *, allow_expired=False):
     try:
         if base64.urlsafe_b64encode(base64.urlsafe_b64decode(value)).decode() != value:
             return None
         result = json.loads(cipher(settings).decrypt(value.encode()))
-        if not isinstance(result, dict) or not isinstance(result.get("exp"), int) or result["exp"] <= time.time():
+        if not isinstance(result, dict) or not isinstance(result.get("exp"), int):
+            return None
+        if not allow_expired and result["exp"] <= time.time():
             return None
         return result
     except (InvalidToken, ValueError, TypeError, AttributeError):
@@ -110,7 +112,7 @@ def transaction(request, purpose, identifier):
     raw = request.cookies.get(prefix(settings) + identifier)
     if not raw:
         return None
-    value = unseal(settings, raw)
+    value = unseal(settings, raw, allow_expired=True)
     if (
         not value
         or value.get("id") != identifier
@@ -118,47 +120,48 @@ def transaction(request, purpose, identifier):
         or not isinstance(value.get("verifier"), str)
     ):
         return None
+    if value["exp"] <= time.time():
+        raise AuthError(410, "The email link expired")
     return value
 
 
-def digest(value):
-    return hashlib.sha256(value.encode()).hexdigest()
-
-
-def recovery_grant(request, user_id=None, *, refreshing=False):
+def recovery_grant(request):
     settings = request.app.state.auth_settings
     raw = request.cookies.get(recovery_name(settings))
     if not raw:
         return None
     value = unseal(settings, raw)
-    if not value or value.get("purpose") != "recovery":
-        return None
-    access = request.cookies.get(settings.access_cookie, "")
-    # A refresh may replace an expired/missing access cookie only when the
-    # encrypted grant still matches the refresh credential verified by Supabase.
-    if (not refreshing or access) and value.get("access") != digest(access):
-        return None
-    if value.get("refresh") != digest(request.cookies.get(settings.refresh_cookie, "")):
-        return None
-    if user_id is not None and value.get("sub") != str(user_id):
+    if not value or value.get("purpose") != "recovery" or not isinstance(value.get("access_token"), str):
         return None
     return value
 
 
-def set_recovery(request, response, data, user, *, expires=None):
+def is_legacy_recovery(request):
+    """Recognize recovery token pairs issued into ordinary cookies before isolation."""
     settings = request.app.state.auth_settings
-    expires = min(expires or int(time.time()) + RECOVERY_TTL, int(time.time()) + int(data["expires_in"]))
-    age = expires - int(time.time())
-    if age <= 0:
-        return
+    raw = request.cookies.get(recovery_name(settings))
+    if not raw:
+        return False
+    value = unseal(settings, raw, allow_expired=True)
+    if not value or value.get("purpose") != "recovery":
+        return False
+    for claims_key, cookie_name in (("access", settings.access_cookie), ("refresh", settings.refresh_cookie)):
+        token = request.cookies.get(cookie_name)
+        if token and value.get(claims_key) == hashlib.sha256(token.encode()).hexdigest():
+            return True
+    return False
+
+
+def set_recovery(request, response, session):
+    settings = request.app.state.auth_settings
+    age = min(RECOVERY_TTL, session.expires_in)
     value = seal(
         settings,
         {
             "purpose": "recovery",
-            "sub": str(user.id),
-            "exp": expires,
-            "access": digest(data["access_token"]),
-            "refresh": digest(data["refresh_token"]),
+            "sub": str(session.user.id),
+            "exp": int(time.time()) + age,
+            "access_token": session.access_token.get_secret_value(),
         },
     )
     write_cookie(response, settings, recovery_name(settings), value, age)
@@ -190,13 +193,18 @@ class CallbackRedactionMiddleware:
         if scope["type"] == "http" and scope.get("path", "").startswith("/auth/callback/"):
             raw = scope.get("query_string", b"")
             scope["query_string"] = b""
+            expired = False
             try:
                 values = parse_qs(raw.decode(), max_num_fields=12, keep_blank_values=True)
                 codes = values.get("code", [])
                 code = codes[0] if len(codes) == 1 and 0 < len(codes[0]) <= 512 else None
                 if "error" in values or "error_description" in values:
                     code = None
+                if "error_code" in values:
+                    code = None
+                    expired = values["error_code"] in (["otp_expired"], ["flow_state_expired"])
             except (ValueError, UnicodeDecodeError):
                 code = None
             scope.setdefault("state", {})["pkce_code"] = code
+            scope["state"]["pkce_expired"] = expired
         await self.app(scope, receive, send)
